@@ -179,3 +179,146 @@ export function amountForPlayer(player) {
   const cat = findCategoryByName(player?.category);
   return Number(cat?.amount ?? 0);
 }
+
+// ============ ICONOS SVG ============ //
+export const ICON = {
+  plus: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/></svg>',
+  edit: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>',
+  trash: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>',
+  copy: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z"/><path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><path d="M20 6L9 17l-5-5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+  cash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+  bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M8 14v4"/><path d="M12 14v4"/><path d="M16 14v4"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.37 1.9.72 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0122 16.92z"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  chevronDown: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>',
+};
+
+// ============ DROPDOWN DE MENSAJES ============ //
+// Catalogo con su icono y tono (reusado por tarjeta y tabla).
+export const MSG_LEVELS = [
+  { key: 'recordatorio', label: 'Recordatorio', sub: 'Sin atraso - dia limite', tone: 'sky',     icon: 'check' },
+  { key: 'mora1',        label: 'Mora 1 dia',    sub: 'Atraso de 1-2 dias',     tone: 'amber',   icon: 'clock' },
+  { key: 'mora3',        label: 'Mora 3 dias',   sub: 'Atraso de 3-4 dias',     tone: 'orange',  icon: 'alert' },
+  { key: 'mora5',        label: 'No podra entrenar', sub: 'Atraso de 5+ dias',  tone: 'red',     icon: 'ban' },
+];
+
+const TONE_CLASS = {
+  sky:    { bg: 'bg-sky-100',    text: 'text-sky-700'    },
+  amber:  { bg: 'bg-amber-100',  text: 'text-amber-800'  },
+  orange: { bg: 'bg-orange-100', text: 'text-orange-700' },
+  red:    { bg: 'bg-red-100',    text: 'text-red-700'    },
+};
+
+const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
+
+/**
+ * Abre un menu flotante con las 4 opciones de mensaje para el jugador.
+ * @param {HTMLElement} anchor  boton que dispara el menu
+ * @param {{id:string, name:string, paymentDay:1|15, category?:string, phone?:string}} player
+ * @param {{amount?:number}} [payment]   para los placeholders {monto}
+ */
+export function openMessageMenu(anchor, player, payment = {}) {
+  closeMessageMenu();
+  // Importacion dinamica para no romper en entornos sin bundler
+  import('./services/messages.js').then(({ renderMessage, copyToClipboard }) => {
+    const rect = anchor.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.className = 'msg-menu';
+    menu.id = 'msg-menu';
+    const itemHTML = MSG_LEVELS.map((m) => {
+      const tone = TONE_CLASS[m.tone] || TONE_CLASS.sky;
+      const ic = m.icon === 'ban' ? BAN_ICON : (ICON[m.icon] || ICON.chat);
+      return `
+        <button type="button" class="msg-menu-item" data-level="${m.key}">
+          <span class="msg-icon ${tone.bg} ${tone.text}">${ic}</span>
+          <span class="min-w-0">
+            <span class="msg-title">${m.label}</span>
+            <span class="msg-sub block">${m.sub}</span>
+          </span>
+        </button>
+      `;
+    }).join('');
+
+    menu.innerHTML = itemHTML;
+    document.body.appendChild(menu);
+
+    // Posicionamiento: preferido derecha, sino izquierda, sino abajo
+    const mw = 320, mh = menu.offsetHeight || 280;
+    let left = rect.right - mw;
+    if (left < 8) left = 8;
+    let top = rect.bottom + 8;
+    if (top + mh > window.innerHeight - 8) {
+      top = rect.top - mh - 8;
+    }
+    if (top < 8) top = 8;
+    menu.style.left = `${left}px`;
+    menu.style.top  = `${top}px`;
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'msg-backdrop';
+    backdrop.id = 'msg-backdrop';
+    document.body.appendChild(backdrop);
+
+    backdrop.addEventListener('click', closeMessageMenu);
+    document.addEventListener('keydown', escClose);
+
+    menu.querySelectorAll('[data-level]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const level = btn.dataset.level;
+        const fakePayment = {
+          year: new Date().getFullYear(),
+          quincena: new Date().getDate() <= 15 ? 1 : 2,
+          amount: payment.amount ?? amountForPlayer(player),
+        };
+        const today = new Date();
+        // Si el nivel real coincide con el forzado, lo usamos tal cual.
+        // Si no, ajustamos paymentDay en una copia del jugador para forzar el nivel deseado.
+        let effectivePlayer = player;
+        const real = renderMessage(player, fakePayment, today);
+        if (real.level !== level) {
+          const offset = level === 'mora1' ? 1 : level === 'mora3' ? 3 : level === 'mora5' ? 5 : 0;
+          effectivePlayer = { ...player, paymentDay: player.paymentDay - offset };
+        }
+        const { text } = renderMessage(effectivePlayer, fakePayment, today);
+        try {
+          await copyToClipboard(text);
+          toast(`Mensaje copiado (${btn.querySelector('.msg-title').textContent})`, 'success', 2500);
+        } catch (e) {
+          console.error(e);
+          toast('No se pudo copiar', 'error');
+        }
+        closeMessageMenu();
+      });
+    });
+  });
+}
+
+export function closeMessageMenu() {
+  document.getElementById('msg-menu')?.remove();
+  document.getElementById('msg-backdrop')?.remove();
+  document.removeEventListener('keydown', escClose);
+}
+function escClose(e) { if (e.key === 'Escape') closeMessageMenu(); }
+
+// Paleta deterministica por nombre para avatares.
+export function avatarGradient(name = '') {
+  const palettes = [
+    ['#F97316', '#EA580C'], // brand
+    ['#0EA5E9', '#0369A1'], // sky
+    ['#10B981', '#047857'], // emerald
+    ['#F59E0B', '#B45309'], // amber
+    ['#8B5CF6', '#6D28D9'], // violet
+    ['#EC4899', '#BE185D'], // pink
+    ['#14B8A6', '#0F766E'], // teal
+    ['#EF4444', '#B91C1C'], // red
+  ];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  const [from, to] = palettes[h % palettes.length];
+  return `--avatar-from:${from};--avatar-to:${to};`;
+}

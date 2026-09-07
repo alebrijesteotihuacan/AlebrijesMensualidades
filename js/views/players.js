@@ -1,12 +1,12 @@
 // js/views/players.js
-// Vista de Jugadores: grid responsivo con CRUD + filtros.
+// Vista de Jugadores: grid de tarjetas enriquecidas (avatar, estado, mensaje, acciones).
 
-import { state, toast, openModal, confirmModal, escapeHTML, initials, findCategoryByName } from '../app.js';
+import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, findCategoryByName } from '../app.js';
 import { players, payments } from '../services/firestore.js';
-import { classifyMora, moraBadgeClass, moraLabel } from '../services/mora.js';
-import { formatMXN } from '../utils/dates.js';
+import { classifyMora, moraLabel } from '../services/mora.js';
+import { daysMora, formatMXN, getCurrentQuincena } from '../utils/dates.js';
 
-let _filter = { category: '', search: '' };
+let _filter = { category: '', status: '', search: '' };
 
 export function renderPlayers(root) {
   root.innerHTML = `
@@ -17,28 +17,40 @@ export function renderPlayers(root) {
           <p class="muted text-sm">Gestión de jugadores del club</p>
         </div>
         <button id="btn-new-player" class="btn-primary">
-          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+          ${ICON.plus}
           Nuevo jugador
         </button>
       </header>
 
       <!-- Filtros -->
-      <div class="card card-pad flex flex-col sm:flex-row gap-3">
-        <div class="flex-1">
+      <div class="card card-pad grid grid-cols-1 sm:grid-cols-12 gap-3">
+        <div class="sm:col-span-6">
           <label class="label">Buscar</label>
           <input id="f-search" type="search" placeholder="Nombre o teléfono…" class="input" />
         </div>
-        <div class="sm:w-64">
+        <div class="sm:col-span-3">
           <label class="label">Categoría</label>
           <select id="f-category" class="select">
             <option value="">Todas</option>
             ${state.categories.map((c) => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('')}
           </select>
         </div>
-        <div class="self-end">
-          <button id="f-clear" class="btn-ghost">Limpiar</button>
+        <div class="sm:col-span-3">
+          <label class="label">Estado</label>
+          <select id="f-status" class="select">
+            <option value="">Todos</option>
+            <option value="paid">Al día</option>
+            <option value="pending">Pendientes</option>
+            <option value="mora">En mora</option>
+          </select>
+        </div>
+        <div class="sm:col-span-12 flex justify-end">
+          <button id="f-clear" class="btn-ghost btn-sm">Limpiar filtros</button>
         </div>
       </div>
+
+      <!-- Resumen rapido -->
+      <div id="players-summary"></div>
 
       <!-- Grid -->
       <div id="players-grid"></div>
@@ -46,21 +58,41 @@ export function renderPlayers(root) {
   `;
 
   const grid    = root.querySelector('#players-grid');
+  const summary = root.querySelector('#players-summary');
   const search  = root.querySelector('#f-search');
   const catSel  = root.querySelector('#f-category');
+  const staSel  = root.querySelector('#f-status');
   const clear   = root.querySelector('#f-clear');
   const btnNew  = root.querySelector('#btn-new-player');
 
   search.value = _filter.search;
   catSel.value = _filter.category;
+  staSel.value = _filter.status;
 
-  search.addEventListener('input', (e) => { _filter.search = e.target.value.toLowerCase().trim(); paint(); });
+  search.addEventListener('input',  (e) => { _filter.search = e.target.value.toLowerCase().trim(); paint(); });
   catSel.addEventListener('change', (e) => { _filter.category = e.target.value; paint(); });
-  clear.addEventListener('click', () => { _filter = { category: '', search: '' }; search.value = ''; catSel.value = ''; paint(); });
+  staSel.addEventListener('change', (e) => { _filter.status   = e.target.value; paint(); });
+  clear.addEventListener('click', () => { _filter = { category: '', status: '', search: '' }; search.value = ''; catSel.value = ''; staSel.value = ''; paint(); });
   btnNew.addEventListener('click', () => openPlayerForm(null));
 
   function paint() {
-    const filtered = applyFilter(state.players, _filter);
+    const playersWithStatus = state.players.map(playerWithCurrentStatus);
+    const filtered = applyFilter(playersWithStatus, _filter);
+
+    // Resumen
+    const total     = playersWithStatus.length;
+    const paid      = playersWithStatus.filter((p) => p.status === 'paid').length;
+    const pending   = playersWithStatus.filter((p) => p.status === 'pending').length;
+    const mora      = playersWithStatus.filter((p) => p.status === 'mora').length;
+    summary.innerHTML = `
+      <div class="flex flex-wrap gap-2 text-xs">
+        <span class="badge badge-neutral">${total} totales</span>
+        <span class="badge badge-paid">${paid} al día</span>
+        <span class="badge badge-pending">${pending} pendientes</span>
+        ${mora > 0 ? `<span class="badge badge-mora">${mora} en mora</span>` : ''}
+      </div>
+    `;
+
     if (filtered.length === 0) {
       grid.innerHTML = state.players.length === 0
         ? `<div class="card card-pad text-center"><p class="font-semibold">Aún no hay jugadores</p><p class="muted text-sm">Crea el primero con el botón "Nuevo jugador".</p></div>`
@@ -75,19 +107,54 @@ export function renderPlayers(root) {
     `;
 
     grid.querySelectorAll('[data-edit]').forEach((b) =>
-      b.addEventListener('click', () => openPlayerForm(b.dataset.edit))
+      b.addEventListener('click', (e) => { e.stopPropagation(); openPlayerForm(b.dataset.edit); })
     );
     grid.querySelectorAll('[data-del]').forEach((b) =>
-      b.addEventListener('click', () => onDelete(b.dataset.del))
+      b.addEventListener('click', (e) => { e.stopPropagation(); onDelete(b.dataset.del); })
+    );
+    grid.querySelectorAll('[data-msg]').forEach((b) =>
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const p = state.players.find((x) => x.id === b.dataset.msg);
+        if (!p) return;
+        const cat = findCategoryByName(p.category);
+        openMessageMenu(b, p, { amount: cat?.amount || 0 });
+      })
     );
   }
 
   paint();
 }
 
-function applyFilter(list, { category, search }) {
+/**
+ * Enriquece al jugador con su estado del periodo actual:
+ *  status: 'paid' | 'pending' | 'mora'
+ *  payment: el Payment del periodo actual (si existe)
+ *  diasMora: numero
+ */
+function playerWithCurrentStatus(p) {
+  const cur = getCurrentQuincena();
+  const payment = state.payments.find((pay) =>
+    pay.playerId === p.id &&
+    Number(pay.year) === cur.year &&
+    Number(pay.quincena) === cur.quincena
+  );
+  const dias = daysMora(p);
+  let status = 'paid';
+  if (payment?.status === 'pending') {
+    status = dias > 0 ? 'mora' : 'pending';
+  } else if (!payment) {
+    // Sin pago del periodo actual: si paso el paymentDay, mora
+    if (dias > 0) status = 'mora';
+    else status = 'pending';
+  }
+  return { ...p, status, payment: payment || null, diasMora: dias };
+}
+
+function applyFilter(list, { category, status, search }) {
   return list
     .filter((p) => !category || p.category === category)
+    .filter((p) => !status   || p.status   === status)
     .filter((p) => {
       if (!search) return true;
       const hay = `${p.name} ${p.phone || ''}`.toLowerCase();
@@ -99,45 +166,74 @@ function applyFilter(list, { category, search }) {
 function playerCard(p) {
   const cat = findCategoryByName(p.category);
   const amount = formatMXN(cat?.amount ?? 0);
-  const level = classifyMora(p);
-  const badge = `<span class="${moraBadgeClass(level)}">${moraLabel(level)}</span>`;
+  const statusBadge = statusBadgeHTML(p);
 
   return `
-    <article class="player-card">
+    <article class="player-rich" data-status="${p.status}">
+      <!-- Header: avatar + nombre + acciones -->
       <div class="flex items-start gap-3">
-        <div class="player-avatar">${escapeHTML(initials(p.name) || '?')}</div>
-        <div class="flex-1 min-w-0">
-          <h3 class="font-display font-bold text-base truncate">${escapeHTML(p.name)}</h3>
-          <p class="text-xs muted">${escapeHTML(p.category || '—')}</p>
-          <p class="text-xs muted">📞 ${escapeHTML(p.phone || '—')}</p>
+        <div class="avatar-gradient size-lg" style="${avatarGradient(p.name)}">${escapeHTML(initialsOf(p.name))}</div>
+        <div class="min-w-0 flex-1">
+          <h3 class="font-display font-extrabold text-lg leading-tight truncate">${escapeHTML(p.name)}</h3>
+          <p class="text-xs muted truncate">${escapeHTML(p.category || 'Sin categoría')}</p>
         </div>
-        ${badge}
+        <div class="flex flex-col gap-1">
+          <button data-edit="${p.id}" class="h-8 w-8 inline-flex items-center justify-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-900" title="Editar">
+            ${ICON.edit}
+          </button>
+          <button data-del="${p.id}" class="h-8 w-8 inline-flex items-center justify-center rounded-lg text-ink-500 hover:bg-red-50 hover:text-red-600" title="Eliminar">
+            ${ICON.trash}
+          </button>
+        </div>
       </div>
 
-      ${p.notes ? `<p class="text-xs text-ink-700 bg-ink-50 rounded-lg p-2 line-clamp-2">${escapeHTML(p.notes)}</p>` : ''}
+      <!-- Info: telefono + monto + dia -->
+      <div class="grid grid-cols-2 gap-2 text-sm">
+        <div class="rounded-xl bg-ink-50/60 px-3 py-2">
+          <p class="text-[11px] uppercase tracking-wide muted font-semibold">Teléfono</p>
+          ${p.phone
+            ? `<a href="tel:${escapeHTML(p.phone)}" class="font-semibold text-ink-900 hover:text-brand-700 inline-flex items-center gap-1.5">${ICON.phone}${escapeHTML(p.phone)}</a>`
+            : `<p class="font-semibold text-ink-300">—</p>`}
+        </div>
+        <div class="rounded-xl bg-ink-50/60 px-3 py-2">
+          <p class="text-[11px] uppercase tracking-wide muted font-semibold">Mensualidad</p>
+          <p class="font-bold text-ink-900">${amount}</p>
+        </div>
+      </div>
 
-      <div class="flex items-center justify-between text-xs">
+      <!-- Estado -->
+      <div class="flex items-center justify-between gap-2">
         <div>
-          <p class="muted">Mensualidad</p>
-          <p class="font-bold">${amount}</p>
+          <p class="text-[11px] uppercase tracking-wide muted font-semibold mb-1">Estado</p>
+          ${statusBadge}
         </div>
-        <div>
-          <p class="muted">Día de pago</p>
-          <p class="font-bold">Día ${p.paymentDay}</p>
-        </div>
+        ${p.diasMora > 0 ? `<p class="text-xs muted">Día de pago: <span class="font-semibold text-ink-700">${p.paymentDay}</span></p>` : ''}
       </div>
 
-      <div class="flex gap-2 pt-2 border-t border-ink-100">
-        <button data-edit="${p.id}" class="btn-secondary flex-1">
-          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-          Editar
-        </button>
-        <button data-del="${p.id}" class="btn-ghost text-red-600 hover:bg-red-50" aria-label="Eliminar">
-          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-        </button>
-      </div>
+      <!-- Boton mensaje -->
+      <button data-msg="${p.id}" class="btn-message">
+        ${ICON.chat}<span>Copiar mensaje de pago</span>
+      </button>
+
+      ${p.notes ? `<p class="text-xs text-ink-700 bg-ink-50 rounded-lg p-2 line-clamp-2 border border-ink-100">📝 ${escapeHTML(p.notes)}</p>` : ''}
     </article>
   `;
+}
+
+function statusBadgeHTML(p) {
+  if (p.status === 'paid') {
+    return `<span class="status-pill paid">${ICON.check}<span>Pagado</span></span>`;
+  }
+  if (p.status === 'pending') {
+    return `<span class="status-pill pending">${ICON.clock}<span>Pendiente hoy</span></span>`;
+  }
+  // mora
+  const label = moraLabel(classifyMora(p));
+  return `<span class="status-pill mora">${ICON.alert}<span>${escapeHTML(label)}</span></span>`;
+}
+
+function initialsOf(name) {
+  return String(name || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 }
 
 // === FORMULARIO CREAR/EDITAR ===
@@ -224,7 +320,6 @@ async function onDelete(id) {
   });
   if (!ok) return;
   try {
-    // eliminar pagos del jugador
     const related = state.payments.filter((pay) => pay.playerId === id);
     await Promise.all(related.map((pay) => payments.remove(pay.id)));
     await players.remove(id);

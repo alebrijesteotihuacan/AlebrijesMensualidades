@@ -1,4 +1,4 @@
-/* Alebrijes Teotihuacán — Custom styles
+/* Alebrijes Teotihuacan — Custom styles
    Complementa Tailwind con utilidades y componentes propios.
 */
 
@@ -61,13 +61,67 @@ html { scroll-behavior: smooth; }
 .badge-info    { @apply bg-sky-100 text-sky-700; }
 .badge-neutral { @apply bg-ink-100 text-ink-700; }
 
-/* === KPI === */
+/* === KPI clasico === */
 .kpi {
   @apply card card-pad flex flex-col gap-1;
 }
 .kpi-label { @apply text-xs font-semibold uppercase tracking-wide text-ink-500; }
 .kpi-value { @apply font-display text-3xl font-extrabold text-ink-900; }
 .kpi-sub   { @apply text-xs text-ink-500; }
+
+/* === KPI Hero (nuevo, mas grande y visual) === */
+.kpi-hero {
+  @apply relative overflow-hidden rounded-2xl shadow-soft p-5 sm:p-6 flex flex-col gap-3 transition;
+  @apply hover:-translate-y-0.5 hover:shadow-md;
+}
+.kpi-hero .kpi-hero-icon {
+  @apply h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0;
+}
+.kpi-hero .kpi-hero-value {
+  @apply font-display font-extrabold text-4xl sm:text-5xl leading-none tracking-tight;
+}
+.kpi-hero .kpi-hero-label {
+  @apply text-xs sm:text-sm font-semibold uppercase tracking-wider opacity-80;
+}
+.kpi-hero .kpi-hero-sub {
+  @apply text-xs opacity-75;
+}
+.kpi-hero::after {
+  content: "";
+  position: absolute;
+  top: -40%; right: -20%;
+  width: 220px; height: 220px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,.18);
+  filter: blur(20px);
+  pointer-events: none;
+}
+.kpi-hero.kpi-brand   { @apply bg-gradient-to-br from-brand-500 to-brand-700 text-white; }
+.kpi-hero.kpi-emerald { @apply bg-gradient-to-br from-emerald-500 to-emerald-700 text-white; }
+.kpi-hero.kpi-amber   { @apply bg-gradient-to-br from-amber-400 to-amber-600 text-white; }
+.kpi-hero.kpi-red     { @apply bg-gradient-to-br from-rose-500 to-red-700 text-white; }
+.kpi-hero.kpi-sky     { @apply bg-gradient-to-br from-sky-500 to-sky-700 text-white; }
+.kpi-hero.kpi-ink     { @apply bg-gradient-to-br from-ink-700 to-ink-900 text-white; }
+
+/* === Hero header del dashboard === */
+.dash-hero {
+  @apply relative overflow-hidden rounded-3xl shadow-soft;
+  background: radial-gradient(120% 140% at 0% 0%, #FED7AA 0%, #FDBA74 30%, #FB923C 60%, #EA580C 100%);
+}
+.dash-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 60% at 100% 0%, rgba(255,255,255,.35) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* === Progress bar === */
+.progress {
+  @apply h-2 rounded-full bg-ink-100 overflow-hidden flex;
+}
+.progress > .bar-paid    { @apply bg-emerald-500 h-full; }
+.progress > .bar-pending { @apply bg-amber-400 h-full; }
 
 /* === Toast === */
 .toast {
@@ -97,17 +151,96 @@ html { scroll-behavior: smooth; }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* === Player card hover === */
+/* === Player card basico === */
 .player-card {
   @apply card card-pad flex flex-col gap-3 hover:border-brand-300 hover:shadow-md transition;
 }
 .player-avatar {
-  @apply h-12 w-12 rounded-full bg-brand-100 text-brand-700 font-display font-extrabold flex items-center justify-center text-lg;
+  @apply h-12 w-12 rounded-full bg-brand-100 text-brand-700 font-display font-extrabold flex items-center justify-center text-lg shrink-0;
+}
+
+/* === Player card RICO (nuevo diseno) === */
+.player-rich {
+  @apply relative bg-white rounded-2xl shadow-soft border border-ink-100 p-5 flex flex-col gap-4 transition;
+  @apply hover:shadow-md hover:border-brand-200;
+}
+.player-rich[data-status="paid"]    { @apply border-l-4 border-l-emerald-500; }
+.player-rich[data-status="pending"] { @apply border-l-4 border-l-amber-400; }
+.player-rich[data-status="mora"]    { @apply border-l-4 border-l-red-500; }
+
+.avatar-gradient {
+  @apply h-14 w-14 rounded-2xl text-white font-display font-extrabold text-lg flex items-center justify-center shrink-0 shadow-soft;
+  background-image: linear-gradient(135deg, var(--avatar-from, #F97316), var(--avatar-to, #EA580C));
+}
+.avatar-gradient.size-lg { @apply h-16 w-16 text-xl rounded-2xl; }
+
+/* === Status pill grande (nuevo) === */
+.status-pill {
+  @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold whitespace-nowrap;
+}
+.status-pill.paid    { @apply bg-emerald-100 text-emerald-700; }
+.status-pill.pending { @apply bg-amber-100 text-amber-800; }
+.status-pill.mora    { @apply bg-red-100 text-red-700; }
+
+/* === Boton de mensaje destacado (nuevo) === */
+.btn-message {
+  @apply relative inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition shadow-soft;
+  @apply bg-brand-600 text-white hover:bg-brand-700;
+}
+.btn-message[data-disabled="true"] {
+  @apply bg-ink-100 text-ink-400 cursor-not-allowed shadow-none;
+}
+
+/* === Dropdown de mensajes (nuevo) === */
+.msg-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 280px;
+  max-width: 340px;
+  @apply bg-white rounded-2xl shadow-soft border border-ink-200 overflow-hidden;
+  animation: msg-menu-in .15s ease-out;
+}
+@keyframes msg-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.msg-menu-item {
+  @apply w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-ink-50 transition border-b border-ink-100 last:border-0;
+}
+.msg-menu-item .msg-icon {
+  @apply h-9 w-9 rounded-lg flex items-center justify-center shrink-0;
+}
+.msg-menu-item .msg-title {
+  @apply font-bold text-sm text-ink-900;
+}
+.msg-menu-item .msg-sub {
+  @apply text-xs text-ink-500 mt-0.5;
+}
+.msg-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+}
+
+/* === Category bar (nuevo dashboard) === */
+.cat-row {
+  @apply flex items-center gap-3 py-2;
+}
+.cat-row .cat-name {
+  @apply text-sm font-semibold text-ink-900 truncate flex-1;
+}
+.cat-row .cat-count {
+  @apply text-xs text-ink-500 tabular-nums w-20 text-right;
 }
 
 /* === Misc === */
 .muted { @apply text-ink-500; }
 .divider { @apply h-px bg-ink-100 my-4; }
+
+/* === Mobile tweaks === */
+@media (max-width: 640px) {
+  .kpi-hero .kpi-hero-value { font-size: 2.25rem; }
+}
 
 /* Print */
 @media print {
