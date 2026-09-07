@@ -7,7 +7,7 @@ import { LinksPage } from '@/pages/LinksPage';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/AlebrijesMensualidad">
       <Layout>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
