@@ -1,124 +1,105 @@
-# Todolist - Panel de Control Alebrijes Teotihuacán
+# Mensualidad Alebrijes Teotihuacán — TODO List
 
-## Resumen del Proyecto
-Panel de control para administrar pagos y mensualidades de los jugadores locales de Alebrijes de Oaxaca Teotihuacán.
-
-## Stack Tecnológico
-- **Frontend**: React + Vite + TypeScript
-- **Estilos**: Tailwind CSS + shadcn/ui
-- **Base de Datos**: Firebase (Firestore)
-- **Exportación**: jsPDF + xlsx
+> **Stack**: Vanilla JS + ES Modules + Tailwind CSS (CDN) + Firebase Firestore
+> **Deploy**: GitHub Pages (Actions)
+> **Repo**: https://github.com/alebrijesteotihuacan/AlebrijesMensualidad.git
 
 ---
 
-## Fase 1: Configuración del Proyecto
-- [ ] 1. Inicializar proyecto React + Vite + TypeScript
-- [ ] 2. Instalar y configurar Tailwind CSS
-- [ ] 3. Instalar y configurar shadcn/ui
-- [ ] 4. Configurar Firebase (configuración inicial)
-- [ ] 5. Crear estructura de carpetas
+## 📁 Fase 0 — Setup del proyecto
+- [ ] Mover `DatosDeTransferencia_Mensualidad.png` → `assets/clabe.png`
+- [ ] Mover `03_TEOTIHUACAN_-_Fuerzas_Basicas.png` → `assets/logo.png`
+- [ ] Crear estructura de carpetas (`js/views`, `js/services`, `js/utils`, `tools`)
+- [ ] Crear `index.html` con Tailwind CDN + viewport responsive
+- [ ] Crear `js/firebase-config.js` con credenciales
 
-## Fase 2: Tipos y Servicios
-- [ ] 6. Definir tipos TypeScript (Player, Payment, KPI)
-- [ ] 7. Crear servicio de Firebase (CRUD players)
-- [ ] 8. Crear servicio de Firebase (CRUD payments)
-- [ ] 9. Crear hooks personalizados (usePlayers, usePayments)
+## 🔥 Fase 1 — Firebase
+- [ ] Reglas Firestore: `allow read, write: if true`
+- [ ] Documentar setup en README
 
-## Fase 3: Layout y Navegación
-- [ ] 10. Crear componente Header
-- [ ] 11. Crear componente Sidebar
-- [ ] 12. Crear componente Layout principal
-- [ ] 13. Configurar React Router (Dashboard, Jugadores, Pagos, Links)
+## 🗄️ Fase 2 — Modelo de datos
+- [ ] Esquema `players/{id}`: `name, category, phone, notes, paymentDay (1|15), createdAt`
+- [ ] Esquema `payments/{id}`: `playerId, year, quincena (1|2), amount, status (paid|pending), paidDate, createdAt`
+- [ ] Esquema `categories/{id}`: `name, amount`
+- [ ] `tools/seed.js`: 5 categorías + 10 jugadores + pagos de ejemplo
 
-## Fase 4: Dashboard y KPIs
-- [ ] 14. Crear componente KPICards (todos los KPIs requeridos)
-- [ ] 15. Crear hook useKPIs para cálculos
-- [ ] 16. Crear componente PaymentsChart (opcional)
-- [ ] 17. Crear componente RecentPayments
+## ⚙️ Fase 3 — Servicios (módulos ES)
+- [ ] `utils/dates.js`: `getCurrentQuincena()`, `daysMora(player, today)`, `formatMXN()`
+- [ ] `services/firestore.js`: `getAll/add/update/remove/subscribe`
+- [ ] `services/mora.js`: clasificador `recordatorio|1d|3d|5d+`
+- [ ] `services/messages.js`: 4 plantillas con `render(player, payment, mora)`
+- [ ] `services/export.js`: `toCSV(data, filename)`, `toPDF(data, filename, title)`
 
-## Fase 5: Gestión de Jugadores
-- [ ] 18. Crear componente PlayerCard (tarjeta de perfil)
-- [ ] 19. Crear componente PlayerGrid (vista grid)
-- [ ] 20. Crear componente PlayerForm (agregar/editar)
-- [ ] 21. Crear componente PlayerFilters (filtros avanzados)
-- [ ] 22. Implementar eliminación de jugadores
+## 🎨 Fase 4 — UI Shell
+- [ ] Header con logo + título
+- [ ] Nav con 3 items + hamburguesa en móvil
+- [ ] Hash router (`#/dashboard`, `#/players`, `#/payments`)
+- [ ] Toast/snackbar para feedback
+- [ ] Modal genérico (crear/editar jugador)
 
-## Fase 6: Gestión de Pagos
-- [ ] 23. Crear componente PaymentForm (registrar pago)
-- [ ] 24. Crear componente PaymentHistory (historial)
-- [ ] 25. Implementar cambio de estados (pagado/pendiente/moroso)
-- [ ] 26. Crear lógica de cálculo de morosidad automática
+## 👥 Fase 5 — Módulo Jugadores
+- [ ] Grid responsivo de tarjetas
+- [ ] Crear jugador (modal)
+- [ ] Editar jugador (modal precargado)
+- [ ] Eliminar con confirmación
+- [ ] Filtro por categoría
+- [ ] Búsqueda por texto
+- [ ] Badge visual de días de mora
 
-## Fase 7: Links de Pago
-- [ ] 27. Crear componente PaymentLink (almacén de links)
-- [ ] 28. Implementar copia de mensaje al portapapeles
-- [ ] 29. Mostrar imagen CLABE
+## 💰 Fase 6 — Módulo Pagos
+- [ ] Listado en tabla responsiva
+- [ ] Filtros: jugador, año, quincena, status
+- [ ] Marcar pagado (fecha = hoy)
+- [ ] Crear/editar/eliminar pago manual
+- [ ] Preview de mensaje según días de mora
+- [ ] Copiar mensaje al portapapeles
+- [ ] Ver CLABE desde acción de pago
 
-## Fase 8: Funciones Adicionales
-- [ ] 30. Implementar exportación a PDF
-- [ ] 31. Implementar exportación a Excel/CSV
-- [ ] 32. Crear función de filtrado general
+## 📊 Fase 7 — Dashboard KPIs
+- [ ] Total jugadores
+- [ ] Jugadores por categoría
+- [ ] Pagados período actual
+- [ ] Pendientes período actual
+- [ ] Morosos
+- [ ] Q1 (1-15) pagados/pendientes
+- [ ] Q2 (16-31) pagados/pendientes
+- [ ] Total $ pendiente
+- [ ] Total $ recaudado
 
-## Fase 9: Datos Iniciales
-- [ ] 33. Crear script o función para cargar jugadores iniciales
-- [ ] 34. Configurar montos por categoría
-- [ ] 35. Probar flujos completos
+## 🏦 Fase 8 — Datos de pago
+- [ ] Sección fija con `assets/clabe.png`
+- [ ] Banco/Titular/CLABE/Concepto en texto
 
-## Fase 10: Ajustes Finales
-- [ ] 36. Diseño responsive (móvil)
-- [ ] 37. Pruebas generales
-- [ ] 38. Documentación básica
+## 📤 Fase 9 — Exportación
+- [ ] Exportar jugadores → CSV
+- [ ] Exportar pagos → CSV
+- [ ] Exportar jugadores → PDF (jsPDF + AutoTable)
+- [ ] Exportar pagos → PDF (jsPDF + AutoTable)
+
+## ✨ Fase 10 — Pulido
+- [ ] Pruebas móvil + escritorio
+- [ ] Validar rendimiento con 50 jugadores
+- [ ] Accesibilidad básica
+- [ ] README con instrucciones
+- [ ] Verificar Pages desplegado
 
 ---
 
-## Información del Negocio
+## 📌 Reglas de negocio clave
 
-### Categorías y Montos
-| Categoría | Tipo | Monto |
-|-----------|------|-------|
-| Alebrijes Teotihuacan | TDP | $1,200 MXN |
-| Soles Teotihuacan | TDP | $1,200 MXN |
-| Sub-18 | Fuerzas Básicas | $750 MXN |
-| Sub-16 | Fuerzas Básicas | $750 MXN |
-| Sub-14 | Fuerzas Básicas | $750 MXN |
+### Mora
+- `paymentDay = 1` → mora desde día 2 (sin gracia)
+- `paymentDay = 15` → mora desde día 16 (sin gracia)
+- `mora = 0` → Recordatorio
+- `mora = 1-2` → Mensaje "Mora 1 día"
+- `mora = 3-4` → Mensaje "Mora 3 días"
+- `mora ≥ 5` → Mensaje "Ya no podrá entrenar"
 
-### Período de Pago
-- **Tipo**: Quincenal
-- **Fechas de corte**: Día 1 y día 15 de cada mes
-- **Días de gracia**: Ninguno
-
-### Estados de Pago
-| Estado | Descripción |
-|--------|-------------|
-| Pagado | El jugador pagó su mensualidad |
-| Pendiente | Aún no vence la fecha de pago |
-| Moroso | Pasó la fecha límite sin pagar |
-
-### KPIs Requeridos
-1. Total de Jugadores
-2. Jugadores TDP (Alebrijes + Soles)
-3. Jugadores Sub-18
-4. Jugadores Sub-16
-5. Jugadores Sub-14
-6. Pagados (período actual)
-7. Pendientes (período actual)
-8. Morosos
-9. Corte del 15 (pagados/pendientes)
-10. Corte del 30 (pagados/pendientes)
-11. Total Pendiente ($)
-12. Total Recaudado ($)
-
-### Datos del Jugador
-- Nombre Completo
-- Categoría
-- Número de Teléfono
-- Notas
-
-### Funcionalidades
-- CRUD completo de jugadores
-- CRUD completo de pagos
-- Dashboard con KPIs
-- Tarjetas de perfil (vista grid)
-- Filtros avanzados (categoría, estado, fecha)
-- Exportar datos (PDF/Excel)
-- Almacén de links de pago (imagen CLABE + mensaje)
+### Categorías y montos
+| Categoría | Monto |
+|---|---|
+| Alebrijes Teotihuacan (TDP) | $1,200 MXN |
+| Soles Teotihuacan (TDP) | $1,200 MXN |
+| Sub-18 | $750 MXN |
+| Sub-16 | $750 MXN |
+| Sub-14 | $750 MXN |

@@ -1,13 +1,125 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>temp-project</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Alebrijes Teotihuacán · Mensualidad</title>
+  <meta name="description" content="Gestión de jugadores y mensualidades - Alebrijes Teotihuacán" />
+
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50:  '#FFF7ED',
+              100: '#FFEDD5',
+              200: '#FED7AA',
+              300: '#FDBA74',
+              400: '#FB923C',
+              500: '#F97316',
+              600: '#EA580C',
+              700: '#C2410C',
+              800: '#9A3412',
+              900: '#7C2D12',
+            },
+            ink: {
+              50:  '#F8FAFC',
+              100: '#F1F5F9',
+              200: '#E2E8F0',
+              300: '#CBD5E1',
+              500: '#64748B',
+              700: '#334155',
+              900: '#0F172A',
+            },
+          },
+          boxShadow: {
+            soft: '0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06)',
+            ring: '0 0 0 4px rgba(249,115,22,.15)',
+          },
+        },
+      },
+    };
+  </script>
+
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <script type="module" src="js/app.js" defer></script>
+</head>
+<body class="min-h-screen bg-ink-50 text-ink-900 font-sans antialiased">
+
+  <!-- ============== HEADER ============== -->
+  <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-ink-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <a href="#/dashboard" class="flex items-center gap-3 group">
+        <img src="assets/logo.png" alt="Alebrijes" class="h-10 w-10 rounded-full ring-2 ring-brand-500 object-cover" />
+        <div class="leading-tight">
+          <p class="font-display font-extrabold text-base sm:text-lg tracking-tight">Alebrijes Teotihuacán</p>
+          <p class="text-[11px] sm:text-xs text-ink-500">Gestión de Mensualidades</p>
+        </div>
+      </a>
+
+      <nav class="hidden md:flex items-center gap-1" id="nav-desktop">
+        <a href="#/dashboard" data-route="dashboard" class="nav-link">Dashboard</a>
+        <a href="#/players"   data-route="players"   class="nav-link">Jugadores</a>
+        <a href="#/payments"  data-route="payments"  class="nav-link">Pagos</a>
+      </nav>
+
+      <button id="hamburger" class="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-lg hover:bg-ink-100" aria-label="Abrir menú">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+
+    <!-- Mobile menu -->
+    <div id="nav-mobile" class="hidden md:hidden border-t border-ink-200 bg-white">
+      <nav class="flex flex-col p-2 gap-1">
+        <a href="#/dashboard" data-route="dashboard" class="nav-link">Dashboard</a>
+        <a href="#/players"   data-route="players"   class="nav-link">Jugadores</a>
+        <a href="#/payments"  data-route="payments"  class="nav-link">Pagos</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============== MAIN ============== -->
+  <main id="main" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8"></main>
+
+  <!-- ============== FOOTER ============== -->
+  <footer class="border-t border-ink-200 bg-white mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 text-xs text-ink-500 flex items-center justify-between">
+      <p>© <span id="year"></span> Alebrijes Teotihuacán · Profesor Haziel Macias</p>
+      <p class="hidden sm:block">v1.0</p>
+    </div>
+  </footer>
+
+  <!-- ============== MODAL ROOT ============== -->
+  <div id="modal-root"></div>
+
+  <!-- ============== TOAST ROOT ============== -->
+  <div id="toast-root" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ============== TEMPLATES ============== -->
+  <template id="tpl-empty">
+    <div class="bg-white rounded-2xl shadow-soft p-10 text-center">
+      <div class="mx-auto h-12 w-12 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center mb-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <p class="font-display font-bold text-lg">Sin datos todavía</p>
+      <p class="text-sm text-ink-500 mt-1">Aún no hay registros que mostrar.</p>
+    </div>
+  </template>
+
+  <!-- ============== LIBS ============== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</body>
 </html>
