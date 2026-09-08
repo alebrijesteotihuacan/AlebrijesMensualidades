@@ -6,7 +6,7 @@ import { players, payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
 import { daysMora, formatMXN, getCurrentQuincena } from '../utils/dates.js';
 
-let _filter = { category: '', status: '', search: '' };
+let _filter = { category: '', status: '', dayRange: '', search: '' };
 
 export function renderPlayers(root) {
   root.innerHTML = `
@@ -24,15 +24,23 @@ export function renderPlayers(root) {
       <!-- Toolbar -->
       <div class="card card-pad flex flex-col gap-3">
         <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-          <div class="sm:col-span-6">
+          <div class="sm:col-span-4">
             <label class="label" for="f-search">Buscar</label>
             <input id="f-search" type="search" placeholder="Nombre o teléfono…" class="input" autocomplete="off" />
           </div>
-          <div class="sm:col-span-3">
+          <div class="sm:col-span-2">
             <label class="label" for="f-category">Categoría</label>
             <select id="f-category" class="select">
               <option value="">Todas</option>
               ${state.categories.map((c) => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="label" for="f-dayrange">Día de pago</label>
+            <select id="f-dayrange" class="select">
+              <option value="">Todos</option>
+              <option value="1-14">1 al 14</option>
+              <option value="15-31">15 al 31</option>
             </select>
           </div>
           <div class="sm:col-span-2">
@@ -44,7 +52,7 @@ export function renderPlayers(root) {
               <option value="mora">En mora</option>
             </select>
           </div>
-          <div class="sm:col-span-1 flex items-end">
+          <div class="sm:col-span-2 flex items-end">
             <button id="f-clear" type="button" class="btn btn-ghost w-full">Limpiar</button>
           </div>
         </div>
@@ -62,18 +70,25 @@ export function renderPlayers(root) {
   const summary = root.querySelector('#players-summary');
   const search  = root.querySelector('#f-search');
   const catSel  = root.querySelector('#f-category');
+  const daySel  = root.querySelector('#f-dayrange');
   const staSel  = root.querySelector('#f-status');
   const clear   = root.querySelector('#f-clear');
   const btnNew  = root.querySelector('#btn-new-player');
 
   search.value = _filter.search;
   catSel.value = _filter.category;
+  daySel.value = _filter.dayRange;
   staSel.value = _filter.status;
 
   search.addEventListener('input',  (e) => { _filter.search = e.target.value.toLowerCase().trim(); paint(); });
   catSel.addEventListener('change', (e) => { _filter.category = e.target.value; paint(); });
+  daySel.addEventListener('change', (e) => { _filter.dayRange = e.target.value; paint(); });
   staSel.addEventListener('change', (e) => { _filter.status   = e.target.value; paint(); });
-  clear.addEventListener('click', () => { _filter = { category: '', status: '', search: '' }; search.value = ''; catSel.value = ''; staSel.value = ''; paint(); });
+  clear.addEventListener('click', () => {
+    _filter = { category: '', status: '', dayRange: '', search: '' };
+    search.value = ''; catSel.value = ''; daySel.value = ''; staSel.value = '';
+    paint();
+  });
   btnNew.addEventListener('click', () => openPlayerForm(null));
 
   function paint() {
@@ -145,10 +160,17 @@ function playerWithCurrentStatus(p) {
   return { ...p, status, payment: payment || null, diasMora: dias };
 }
 
-function applyFilter(list, { category, status, search }) {
+function applyFilter(list, { category, status, dayRange, search }) {
   return list
     .filter((p) => !category || p.category === category)
     .filter((p) => !status   || p.status   === status)
+    .filter((p) => {
+      if (!dayRange) return true;
+      const day = Number(p.paymentDay);
+      if (!Number.isFinite(day)) return true;
+      const [from, to] = dayRange.split('-').map(Number);
+      return day >= from && day <= to;
+    })
     .filter((p) => {
       if (!search) return true;
       const hay = `${p.name} ${p.phone || ''}`.toLowerCase();
@@ -195,9 +217,12 @@ function statusInline(p) {
   if (p.exempt) return `<span class="status"><span class="status-dot dot-neutral"></span><span>Becado</span></span>`;
   if (p.status === 'paid')    return `<span class="status"><span class="status-dot dot-success"></span><span>Al día</span></span>`;
   if (p.status === 'pending') return `<span class="status"><span class="status-dot dot-warning"></span><span>Pendiente hoy</span></span>`;
-  const dias = p.diasMora;
+  // Mora: siempre usa daysMora() para no depender de que el caller
+  // haya enriquecido el objeto con diasMora (caso del drawer).
+  const dias = daysMora(p);
   const dot = dias >= 5 ? 'dot-danger' : 'dot-warning';
-  return `<span class="status"><span class="status-dot ${dot}"></span><span>${escapeHTML(moraLabel(classifyMora(p)))} · ${dias}d</span></span>`;
+  const label = escapeHTML(moraLabel(classifyMora(p, new Date())));
+  return `<span class="status"><span class="status-dot ${dot}"></span><span>${label} · ${dias}d</span></span>`;
 }
 
 function initialsOf(name) {
