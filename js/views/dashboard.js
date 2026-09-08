@@ -79,20 +79,51 @@ export function renderDashboard(root) {
           </div>
 
           <!-- Resumen histórico -->
-          <div class="mt-5 pt-4 border-t border-zinc-100">
-            <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-3">Histórico acumulado</p>
-            <div class="grid grid-cols-3 gap-3">
-              <div>
-                <p class="text-xs text-zinc-500">Esperado / mes</p>
-                <p class="text-sm font-semibold tabular-nums mt-1">${formatMXN(stats.expectedMonthly)}</p>
+          <div class="mt-6 pt-5 border-t border-zinc-100">
+            <div class="flex items-baseline justify-between mb-3">
+              <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Histórico acumulado</p>
+              <p class="text-[11px] text-zinc-400 tabular-nums">${stats.paidPaymentsCount} pagados · ${stats.pendingPaymentsCount} pendientes</p>
+            </div>
+
+            ${(stats.totalCollected + stats.totalPending) > 0 ? `
+              <div class="mb-4">
+                <div class="h-1.5 rounded-full bg-zinc-100 overflow-hidden flex">
+                  ${stats.totalCollected > 0 ? `<div class="bg-emerald-500 transition-all" style="width:${(stats.totalCollected / (stats.totalCollected + stats.totalPending)) * 100}%"></div>` : ''}
+                  ${stats.totalPending > 0 ? `<div class="bg-amber-400 transition-all" style="width:${(stats.totalPending / (stats.totalCollected + stats.totalPending)) * 100}%"></div>` : ''}
+                </div>
+                <div class="flex justify-between mt-1.5 text-[10px] text-zinc-500 tabular-nums">
+                  <span>${stats.historicalPct}% cobrado</span>
+                  <span>${100 - stats.historicalPct}% pendiente</span>
+                </div>
               </div>
-              <div>
-                <p class="text-xs text-zinc-500">Recaudado</p>
-                <p class="text-sm font-semibold tabular-nums mt-1">${formatMXN(stats.totalCollected)}</p>
+            ` : `
+              <p class="text-xs text-zinc-400 italic mb-4">Aún no hay pagos registrados en el histórico.</p>
+            `}
+
+            <div class="grid grid-cols-3 divide-x divide-zinc-100 -mx-1">
+              <div class="px-2 first:pl-1">
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
+                  <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Esperado</p>
+                </div>
+                <p class="text-lg font-semibold tabular-nums text-zinc-900">${formatMXN(stats.expectedMonthly)}</p>
+                <p class="text-[11px] text-zinc-500 mt-0.5">Mensual</p>
               </div>
-              <div>
-                <p class="text-xs text-zinc-500">Pendiente</p>
-                <p class="text-sm font-semibold tabular-nums mt-1">${formatMXN(stats.totalPending)}</p>
+              <div class="px-2">
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Recaudado</p>
+                </div>
+                <p class="text-lg font-semibold tabular-nums text-emerald-700">${formatMXN(stats.totalCollected)}</p>
+                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${stats.historicalPct}% del total</p>
+              </div>
+              <div class="px-2 last:pr-1">
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Pendiente</p>
+                </div>
+                <p class="text-lg font-semibold tabular-nums text-amber-700">${formatMXN(stats.totalPending)}</p>
+                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${100 - stats.historicalPct}% del total</p>
               </div>
             </div>
           </div>
@@ -344,6 +375,11 @@ function computeStats(current) {
   const totalCollected = payments.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalPending   = payments.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount || 0), 0);
   const expectedMonthly = players.filter((p) => !p.exempt).reduce((s, p) => s + amountForPlayer(p), 0);
+  const paidPaymentsCount    = payments.filter((p) => p.status === 'paid').length;
+  const pendingPaymentsCount = payments.filter((p) => p.status === 'pending').length;
+  const historicalPct = (totalCollected + totalPending) > 0
+    ? Math.round((totalCollected / (totalCollected + totalPending)) * 100)
+    : 0;
 
   return {
     totalPlayers,
@@ -359,6 +395,9 @@ function computeStats(current) {
     totalCollected,
     totalPending,
     expectedMonthly,
+    paidPaymentsCount,
+    pendingPaymentsCount,
+    historicalPct,
     byCategory,
   };
 }
