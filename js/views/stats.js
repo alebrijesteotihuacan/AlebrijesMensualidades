@@ -1,19 +1,19 @@
 // js/views/stats.js
-// Vista Estadísticas: filtros por quincena/mes/año + KPIs del período
+// Vista Estadísticas: filtros por año/mes + KPIs del período
 // + comparación con período anterior + gráficas de barras y líneas.
 
 import { state, escapeHTML } from '../app.js';
-import { formatMXN, getCurrentQuincena, monthName, monthShort } from '../utils/dates.js';
+import { formatMXN, monthName, monthShort } from '../utils/dates.js';
 
-let _filter = null; // { year, month ('all'|1..12), quincena (''|1|2) }
+let _filter = null; // { year, month ('all'|1..12) }
 
 export function renderStats(root) {
-  const current = getCurrentQuincena();
+  const today = new Date();
   if (!_filter) {
-    _filter = { year: current.year, month: String(current.month), quincena: '' };
+    _filter = { year: today.getFullYear(), month: String(today.getMonth() + 1) };
   } else {
     const years = availableYears();
-    if (!years.includes(_filter.year)) _filter.year = current.year;
+    if (!years.includes(_filter.year)) _filter.year = today.getFullYear();
   }
 
   paint(root);
@@ -38,7 +38,7 @@ function paint(root) {
 
       <!-- Filtros -->
       <div class="card card-pad">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <div>
             <label class="label" for="s-year">Año</label>
             <select id="s-year" class="select">
@@ -50,14 +50,6 @@ function paint(root) {
             <select id="s-month" class="select">
               <option value="all" ${_filter.month === 'all' ? 'selected' : ''}>Todo el año</option>
               ${[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => `<option value="${m}" ${_filter.month === String(m) ? 'selected' : ''}>${escapeHTML(monthName(m - 1))}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label class="label" for="s-q">Quincena</label>
-            <select id="s-q" class="select">
-              <option value="" ${_filter.quincena === '' ? 'selected' : ''}>Ambas</option>
-              <option value="1" ${_filter.quincena === '1' ? 'selected' : ''}>Q1 (1-15)</option>
-              <option value="2" ${_filter.quincena === '2' ? 'selected' : ''}>Q2 (16-31)</option>
             </select>
           </div>
         </div>
@@ -100,7 +92,7 @@ function paint(root) {
         <div class="flex items-center justify-between mb-4">
           <div>
             <p class="section-eyebrow">Tendencia</p>
-            <h2 class="text-base font-semibold mt-1">Recaudación por mes · ${_filter.year}${_filter.quincena ? ` · Q${_filter.quincena}` : ''}</h2>
+            <h2 class="text-base font-semibold mt-1">Recaudación por mes · ${_filter.year}</h2>
           </div>
           <span class="text-xs text-zinc-500 tabular-nums">Total: ${formatMXN(bars.total)}</span>
         </div>
@@ -112,7 +104,7 @@ function paint(root) {
         <div class="flex items-center justify-between mb-4">
           <div>
             <p class="section-eyebrow">Evolución</p>
-            <h2 class="text-base font-semibold mt-1">% Cobrado por mes · ${_filter.year}${_filter.quincena ? ` · Q${_filter.quincena}` : ''}</h2>
+            <h2 class="text-base font-semibold mt-1">% Cobrado por mes · ${_filter.year}</h2>
           </div>
           <span class="text-xs text-zinc-500 tabular-nums">Promedio: ${lines.avg}%</span>
         </div>
@@ -160,13 +152,9 @@ function paint(root) {
     _filter.month = e.target.value;
     paint(root);
   });
-  root.querySelector('#s-q').addEventListener('change', (e) => {
-    _filter.quincena = e.target.value;
-    paint(root);
-  });
   root.querySelector('#reset-filter').addEventListener('click', () => {
-    const c = getCurrentQuincena();
-    _filter = { year: c.year, month: String(c.month), quincena: '' };
+    const t = new Date();
+    _filter = { year: t.getFullYear(), month: String(t.getMonth() + 1) };
     paint(root);
   });
 }
@@ -357,7 +345,7 @@ function linesChart(data) {
 // ============ CALCULOS ============ //
 
 function availableYears() {
-  const years = new Set([getCurrentQuincena().year, ...state.payments.map((p) => Number(p.year))]);
+  const years = new Set([new Date().getFullYear(), ...state.payments.map((p) => Number(p.year))]);
   return [...years].sort((a, b) => b - a);
 }
 
@@ -365,7 +353,6 @@ function filterPayments(f) {
   return state.payments.filter((p) => {
     if (Number(p.year) !== f.year) return false;
     if (f.month !== 'all' && Number(p.month) !== Number(f.month)) return false;
-    if (f.quincena !== '' && Number(p.quincena) !== Number(f.quincena)) return false;
     return true;
   });
 }
@@ -386,35 +373,23 @@ function computeStats(f) {
 function computePrevious(f) {
   if (f.month === 'all') {
     const prevY = f.year - 1;
-    return { filter: { year: prevY, month: 'all', quincena: '' }, ...computeStats({ year: prevY, month: 'all', quincena: '' }) };
+    const prevFilter = { year: prevY, month: 'all' };
+    return { filter: prevFilter, ...computeStats(prevFilter) };
   }
   let prevY = f.year;
-  let prevM = Number(f.month);
-  let prevQ = f.quincena;
-  if (f.quincena === '') {
-    prevM = prevM - 1;
-    if (prevM < 1) { prevM = 12; prevY -= 1; }
-  } else if (f.quincena === '1') {
-    prevM = prevM - 1;
-    prevQ = '2';
-    if (prevM < 1) { prevM = 12; prevY -= 1; }
-  } else if (f.quincena === '2') {
-    prevQ = '1';
-  }
-  const prevFilter = { year: prevY, month: String(prevM), quincena: prevQ };
+  let prevM = Number(f.month) - 1;
+  if (prevM < 1) { prevM = 12; prevY -= 1; }
+  const prevFilter = { year: prevY, month: String(prevM) };
   return { filter: prevFilter, ...computeStats(prevFilter) };
 }
 
-function monthAggregate(year, quincena) {
+function monthAggregate(year) {
   // Devuelve array de 12 meses con { paid, total, pct }
   return Array.from({ length: 12 }, (_, i) => {
     const month = i + 1;
-    const pays = state.payments.filter((p) => {
-      if (Number(p.year) !== year) return false;
-      if (Number(p.month) !== month) return false;
-      if (quincena !== '' && Number(p.quincena) !== Number(quincena)) return false;
-      return true;
-    });
+    const pays = state.payments.filter((p) =>
+      Number(p.year) === year && Number(p.month) === month
+    );
     const paid = pays.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
     const total = pays.reduce((s, p) => s + Number(p.amount || 0), 0);
     const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
@@ -423,7 +398,7 @@ function monthAggregate(year, quincena) {
 }
 
 function computeBarData(f) {
-  const months = monthAggregate(f.year, f.quincena);
+  const months = monthAggregate(f.year);
   const labels = months.map((m) => monthShort(m.month - 1));
   const values = months.map((m) => m.paid);
   const total = values.reduce((s, v) => s + v, 0);
@@ -432,7 +407,7 @@ function computeBarData(f) {
 }
 
 function computeLineData(f) {
-  const months = monthAggregate(f.year, f.quincena);
+  const months = monthAggregate(f.year);
   const labels = months.map((m) => monthShort(m.month - 1));
   const values = months.map((m) => m.pct);
   const withData = values.filter((v) => v > 0 || months[values.indexOf(v)].total > 0);
@@ -465,9 +440,7 @@ function deltaPct(current, previous) {
 function periodLabel(f) {
   const y = f.year;
   if (f.month === 'all') return `Todo ${y}`;
-  const m = monthName(Number(f.month) - 1);
-  if (f.quincena === '') return `${m} ${y}`;
-  return `${m} ${y} · Q${f.quincena}`;
+  return `${monthName(Number(f.month) - 1)} ${y}`;
 }
 
 // Helpers

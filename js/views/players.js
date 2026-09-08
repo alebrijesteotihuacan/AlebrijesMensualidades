@@ -4,7 +4,7 @@
 import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
 import { players, payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
-import { daysMora, formatMXN, formatDate, getCurrentQuincena, monthName } from '../utils/dates.js';
+import { daysMora, formatMXN, formatDate, monthName } from '../utils/dates.js';
 
 let _filter = { category: '', status: '', dayRange: '', search: '' };
 
@@ -142,12 +142,13 @@ export function renderPlayers(root) {
 
 function playerWithCurrentStatus(p) {
   if (p.exempt) return { ...p, status: 'paid', payment: null, diasMora: 0 };
-  const cur = getCurrentQuincena();
-  const quincena = cur.quincena;
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth() + 1;
   const payment = state.payments.find((pay) =>
     pay.playerId === p.id &&
-    Number(pay.year) === cur.year &&
-    Number(pay.quincena) === quincena
+    Number(pay.year) === year &&
+    Number(pay.month) === month
   );
   const dias = daysMora(p);
   let status = 'paid';
@@ -233,7 +234,7 @@ function initialsOf(name) {
 
 function paymentRow(pay) {
   const mes = monthName(Number(pay.month) - 1);
-  const periodo = `${mes} ${pay.year} · Q${pay.quincena}`;
+  const periodo = `${mes} ${pay.year}`;
   const isPaid = pay.status === 'paid';
   const dot = isPaid ? 'dot-success' : 'dot-warning';
   const statusText = isPaid ? 'Pagado' : 'Pendiente';
@@ -304,7 +305,7 @@ function openPlayerDrawer(id) {
     ${(() => {
       const pays = state.payments
         .filter((pay) => pay.playerId === p.id)
-        .sort((a, b) => (Number(b.year) - Number(a.year)) || (Number(b.quincena) - Number(a.quincena)));
+        .sort((a, b) => (Number(b.year) - Number(a.year)) || (Number(b.month) - Number(a.month)));
       return `
         <div class="mt-5">
           <div class="flex items-center justify-between mb-2">

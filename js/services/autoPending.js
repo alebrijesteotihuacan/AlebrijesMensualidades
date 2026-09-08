@@ -30,7 +30,7 @@ const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
  * @param {Array} payments - lista completa de pagos (reales)
  * @param {Date}  [today]
  * @returns {null | {
- *   year:number, month:number, quincena:1|2,
+ *   year:number, month:number,
  *   dueDate:Date, daysUntilDue:number, isOverdue:boolean, reason:'thisMonth'|'nextMonth'
  * }}
  */
@@ -65,7 +65,6 @@ export function getAutoPendingPeriod(player, payments, today) {
     return {
       year: y,
       month: m,
-      quincena: safeDay(y, m) <= 15 ? 1 : 2,
       dueDate: due,
       daysUntilDue: daysUntil,
       isOverdue: t > due,
@@ -107,7 +106,6 @@ export function buildAutoPendingPayment(player, payments, today, amount) {
     virtual: true,
     year: period.year,
     month: period.month,
-    quincena: period.quincena,
     amount: Number(amount) || 0,
     status: 'pending',
     paidDate: null,

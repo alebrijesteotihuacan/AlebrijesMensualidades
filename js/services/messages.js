@@ -107,7 +107,7 @@ Muchas gracias por tu atención y comprensión. ¡Que sigas teniendo una excelen
 /**
  * Renderiza el mensaje para un jugador pendiente.
  * @param {{id:string, name:string, paymentDay:1|15}} player
- * @param {{year:number, quincena:1|2, amount:number}} payment
+ * @param {{year:number, month:number, amount:number}} payment
  * @param {Date} [today]
  * @returns {{ level: string, text: string }}
  */

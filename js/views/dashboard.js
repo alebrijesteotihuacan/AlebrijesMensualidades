@@ -4,10 +4,11 @@
 import { state, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer } from '../app.js';
 import { classifyMora } from '../services/mora.js';
 import { getAutoPendingPeriod, getAllAutoPending, classifyPlayersByStatus } from '../services/autoPending.js';
-import { formatMXN, getCurrentQuincena, quincenaLabel, monthYearLabel, daysMora } from '../utils/dates.js';
+import { formatMXN, monthYearLabel, daysMora } from '../utils/dates.js';
 
 export function renderDashboard(root) {
-  const current = getCurrentQuincena();
+  const today = new Date();
+  const current = { year: today.getFullYear(), month: today.getMonth() + 1 };
   const stats = computeStats(current);
 
   root.innerHTML = `
@@ -16,7 +17,7 @@ export function renderDashboard(root) {
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <p class="section-eyebrow">${escapeHTML(monthYearLabel(current.year, current.month))} · ${escapeHTML(quincenaLabel(current.year, current.quincena))}</p>
+          <p class="section-eyebrow">${escapeHTML(monthYearLabel(current.year, current.month))}</p>
           <h1 class="section-title text-2xl sm:text-3xl mt-1">Dashboard</h1>
         </div>
         <div class="flex gap-2">
@@ -43,7 +44,7 @@ export function renderDashboard(root) {
               <p class="section-eyebrow">Economía del club</p>
               <h2 class="text-base font-semibold mt-1">Cobranza del período</h2>
             </div>
-            <span class="text-xs text-zinc-500 tabular-nums">${escapeHTML(quincenaLabel(current.year, current.quincena))} · ${escapeHTML(monthYearLabel(current.year, current.month))}</span>
+            <span class="text-xs text-zinc-500 tabular-nums">${escapeHTML(monthYearLabel(current.year, current.month))}</span>
           </div>
 
           <!-- 2 stat blocks: Recaudado / Adeudos -->
@@ -328,7 +329,7 @@ function computeStats(current) {
   const totalPlayers = players.length;
   const exemptCount  = players.filter((p) => p.exempt).length;
 
-  // Filtra pagos del mes actual (por month en vez de quincena)
+  // Filtra pagos del mes actual
   const currentMonthPayments = payments.filter(
     (p) => Number(p.year) === current.year && Number(p.month) === current.month
   );

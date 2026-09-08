@@ -1,7 +1,11 @@
 // utils/dates.js
-// Helpers de fecha: quincenas, días de mora, formateo.
+// Helpers de fecha: mensual, días de mora, formateo.
+// Los jugadores pagan el día 1 o 15 de cada mes (mensualidad).
 
-/** Devuelve {year, quincena (1|2)} a partir de una fecha (default: hoy). */
+// --- DEPRECATED: quincena ---
+// Mantenidas para compatibilidad con datos antiguos. NO usar en código nuevo.
+
+/** @deprecated usar new Date() y derivar year/month directamente */
 export function getCurrentQuincena(date = new Date()) {
   const day   = date.getDate();
   const year  = date.getFullYear();
@@ -10,15 +14,12 @@ export function getCurrentQuincena(date = new Date()) {
   return { year, month, quincena, day };
 }
 
-/** Devuelve el rango {from, to} ISO (YYYY-MM-DD) de una quincena. */
+/** @deprecated no se usa */
 export function quincenaRange(year, quincena) {
   if (quincena === 1) {
     return { from: `${year}-01-01`, to: `${year}-01-15`, label: '1-15' };
   }
-  // Q2: 16-31 (manejo simple: usamos 16 al fin del mes)
-  const lastDay = new Date(year, 2, 0).getDate(); // Feb tiene 28/29
-  const lastMonthDay = new Date(year, 12, 0).getDate(); // día del último día de dic = 31
-  // Para Q2 siempre es 16 a fin de mes (mes en curso). Aquí solo necesitamos label.
+  const lastMonthDay = new Date(year, 12, 0).getDate();
   return { from: `${year}-XX-16`, to: `${year}-XX-${lastMonthDay}`, label: '16-31' };
 }
 

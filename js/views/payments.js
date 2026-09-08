@@ -1,23 +1,24 @@
 // js/views/payments.js
 // Vista Pagos: tabla compacta minimalista, sin sección de datos bancarios.
+// Pagos mensuales: cada jugador paga el día 1 o 15 de cada mes.
 
 import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, amountForPlayer } from '../app.js';
 import { payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
 import { renderMessage, copyToClipboard } from '../services/messages.js';
-import { formatMXN, formatDate, getCurrentQuincena, quincenaLabel } from '../utils/dates.js';
+import { formatMXN, formatDate, monthName } from '../utils/dates.js';
 import { toCSV, toPDF } from '../services/export.js';
 
-let _filter = { playerId: '', year: '', quincena: '', status: '' };
+let _filter = { playerId: '', year: '', month: '', status: '' };
 
 export function renderPayments(root) {
-  const current = getCurrentQuincena();
+  const today = new Date();
 
   root.innerHTML = `
     <section class="flex flex-col gap-6">
       <header class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <p class="section-eyebrow">${escapeHTML(quincenaLabel(current.year, current.quincena))} · Período actual</p>
+          <p class="section-eyebrow">Mensualidades</p>
           <h1 class="section-title text-2xl sm:text-3xl mt-1">Pagos</h1>
         </div>
         <button id="btn-new-payment" type="button" class="btn btn-primary">
@@ -43,11 +44,10 @@ export function renderPayments(root) {
             </select>
           </div>
           <div>
-            <label class="label" for="f-quincena">Quincena</label>
-            <select id="f-quincena" class="select">
-              <option value="">Todas</option>
-              <option value="1">Q1 (1-15)</option>
-              <option value="2">Q2 (16-31)</option>
+            <label class="label" for="f-month">Mes</label>
+            <select id="f-month" class="select">
+              <option value="">Todos</option>
+              ${[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => `<option value="${m}">${escapeHTML(monthName(m - 1))}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -71,24 +71,24 @@ export function renderPayments(root) {
     </section>
   `;
 
-  const playerSel   = root.querySelector('#f-player');
-  const yearSel     = root.querySelector('#f-year');
-  const quincenaSel = root.querySelector('#f-quincena');
-  const statusSel   = root.querySelector('#f-status');
-  const clear       = root.querySelector('#f-clear');
+  const playerSel = root.querySelector('#f-player');
+  const yearSel   = root.querySelector('#f-year');
+  const monthSel  = root.querySelector('#f-month');
+  const statusSel = root.querySelector('#f-status');
+  const clear     = root.querySelector('#f-clear');
 
-  playerSel.value   = _filter.playerId;
-  yearSel.value     = _filter.year;
-  quincenaSel.value = _filter.quincena;
-  statusSel.value   = _filter.status;
+  playerSel.value = _filter.playerId;
+  yearSel.value   = _filter.year;
+  monthSel.value  = _filter.month;
+  statusSel.value = _filter.status;
 
-  playerSel.addEventListener('change',   (e) => { _filter.playerId   = e.target.value; paint(); });
-  yearSel.addEventListener('change',     (e) => { _filter.year       = e.target.value; paint(); });
-  quincenaSel.addEventListener('change', (e) => { _filter.quincena   = e.target.value; paint(); });
-  statusSel.addEventListener('change',   (e) => { _filter.status     = e.target.value; paint(); });
+  playerSel.addEventListener('change', (e) => { _filter.playerId = e.target.value; paint(); });
+  yearSel.addEventListener('change',   (e) => { _filter.year     = e.target.value; paint(); });
+  monthSel.addEventListener('change',  (e) => { _filter.month    = e.target.value; paint(); });
+  statusSel.addEventListener('change', (e) => { _filter.status   = e.target.value; paint(); });
   clear.addEventListener('click', () => {
-    _filter = { playerId: '', year: '', quincena: '', status: '' };
-    playerSel.value = yearSel.value = quincenaSel.value = statusSel.value = '';
+    _filter = { playerId: '', year: '', month: '', status: '' };
+    playerSel.value = yearSel.value = monthSel.value = statusSel.value = '';
     paint();
   });
 
@@ -101,7 +101,7 @@ export function renderPayments(root) {
   function paint() {
     const wrap = root.querySelector('#payments-table');
     const filtered = applyFilter(state.payments, _filter)
-      .sort((a, b) => (b.year - a.year) || (b.quincena - a.quincena) || (a.playerName || '').localeCompare(b.playerName || ''));
+      .sort((a, b) => (b.year - a.year) || (b.month - a.month) || (a.playerName || '').localeCompare(b.playerName || ''));
 
     if (filtered.length === 0) {
       wrap.innerHTML = `<div class="empty-state">
@@ -140,11 +140,11 @@ export function renderPayments(root) {
   }
 }
 
-function applyFilter(list, { playerId, year, quincena, status }) {
+function applyFilter(list, { playerId, year, month, status }) {
   return list
     .filter((p) => !playerId || p.playerId === playerId)
     .filter((p) => !year || String(p.year) === String(year))
-    .filter((p) => !quincena || String(p.quincena) === String(quincena))
+    .filter((p) => !month || String(p.month) === String(month))
     .filter((p) => !status || p.status === status)
     .map((p) => ({ ...p, player: state.players.find((pl) => pl.id === p.playerId), playerName: state.players.find((pl) => pl.id === p.playerId)?.name || '—' }));
 }
@@ -169,7 +169,7 @@ function rowHTML(p) {
         </div>
       </td>
       <td class="hidden md:table-cell text-zinc-600">${escapeHTML(playerCat)}</td>
-      <td class="text-zinc-600 tabular-nums">${escapeHTML(quincenaLabel(p.year, p.quincena))}</td>
+      <td class="text-zinc-600 tabular-nums">${escapeHTML(monthName(Number(p.month) - 1))} ${p.year}</td>
       <td class="text-right font-semibold tabular-nums">${formatMXN(p.amount)}</td>
       <td><span class="status"><span class="status-dot ${statusDot}"></span><span>${escapeHTML(statusText)}</span></span></td>
       <td class="hidden lg:table-cell text-zinc-500 tabular-nums">${p.paidDate ? escapeHTML(formatDate(p.paidDate)) : '—'}</td>
@@ -243,7 +243,7 @@ async function onCopy(paymentId) {
 
 function openPaymentForm(id) {
   const editing = id ? state.payments.find((p) => p.id === id) : null;
-  const current = getCurrentQuincena();
+  const today = new Date();
 
   const initialDay = editing?.paidDate
     ? Number(editing.paidDate.slice(8, 10))
@@ -252,7 +252,7 @@ function openPaymentForm(id) {
     'Enero','Febrero','Marzo','Abril','Mayo','Junio',
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
   ];
-  const initialMonth = editing?.month ?? current.month;
+  const initialMonth = editing?.month ?? (today.getMonth() + 1);
 
   const body = `
     <form id="form-payment" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5" novalidate>
@@ -268,14 +268,6 @@ function openPaymentForm(id) {
         <select id="py-month" name="month" required class="select">
           ${months.map((name, i) => `<option value="${i + 1}" ${initialMonth === i + 1 ? 'selected' : ''}>${name}</option>`).join('')}
         </select>
-      </div>
-      <div>
-        <label class="label" for="py-q">Quincena *</label>
-        <select id="py-q" name="quincena" required class="select">
-          <option value="1" ${(editing?.quincena ?? current.quincena) === 1 ? 'selected' : ''}>Q1 (1-15)</option>
-          <option value="2" ${(editing?.quincena ?? current.quincena) === 2 ? 'selected' : ''}>Q2 (16-31)</option>
-        </select>
-        <p class="form-hint">Se autodefine según el día de pago del jugador.</p>
       </div>
       <div>
         <label class="label" for="py-amount">Monto (MXN) *</label>
@@ -301,23 +293,20 @@ function openPaymentForm(id) {
 
   const m = openModal({ title: editing ? 'Editar pago' : 'Nuevo pago', body, footer, size: 'md' });
 
-  const form        = m.panel.querySelector('#form-payment');
-  const playerSel   = form.querySelector('[name=playerId]');
-  const amountIn    = form.querySelector('[name=amount]');
-  const monthSel    = form.querySelector('[name=month]');
-  const quincenaSel = form.querySelector('[name=quincena]');
-  const dayIn       = form.querySelector('[name=paidDay]');
-  const hint        = m.panel.querySelector('#amount-hint');
-  const paidHint    = m.panel.querySelector('#paid-hint');
+  const form      = m.panel.querySelector('#form-payment');
+  const playerSel = form.querySelector('[name=playerId]');
+  const amountIn  = form.querySelector('[name=amount]');
+  const monthSel  = form.querySelector('[name=month]');
+  const dayIn     = form.querySelector('[name=paidDay]');
+  const hint      = m.panel.querySelector('#amount-hint');
+  const paidHint  = m.panel.querySelector('#paid-hint');
 
   function syncFromPlayer() {
     const pl = state.players.find((x) => x.id === playerSel.value);
     if (pl) {
       const amt = amountForPlayer(pl);
       if (!amountIn.value) amountIn.value = amt;
-      const expectedQ = Number(pl.paymentDay) <= 15 ? 1 : 2;
-      quincenaSel.value = String(expectedQ);
-      hint.textContent = `${formatMXN(amt)} · día ${pl.paymentDay} → Q${expectedQ}`;
+      hint.textContent = `${formatMXN(amt)} · paga el día ${pl.paymentDay} de cada mes`;
     } else {
       hint.textContent = 'Selecciona jugador para autocompletar';
     }
@@ -327,24 +316,21 @@ function openPaymentForm(id) {
 
   // Botón "Hoy": pone el día actual (del mes seleccionado)
   m.panel.querySelector('[data-today]').addEventListener('click', () => {
-    const today = new Date();
+    const t = new Date();
     const selMonth = Number(monthSel.value);
-    const todayMonth = today.getMonth() + 1;
+    const todayMonth = t.getMonth() + 1;
     let day;
     if (selMonth === todayMonth) {
-      day = today.getDate();
+      day = t.getDate();
     } else {
-      // Mes distinto al actual: poner el último día válido del mes seleccionado
-      day = new Date(today.getFullYear(), selMonth, 0).getDate();
+      day = new Date(t.getFullYear(), selMonth, 0).getDate();
     }
     dayIn.value = String(day);
     dayIn.focus();
     dayIn.select();
-    // Disparar evento 'input' para actualizar el hint
     dayIn.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
-  // Hint dinámico según haya día o no
   function syncPaidHint() {
     if (dayIn.value) {
       paidHint.textContent = 'Pagado: el día seleccionado del mes elegido.';
@@ -381,7 +367,6 @@ function openPaymentForm(id) {
       playerId: playerSel.value,
       year:      new Date().getFullYear(),
       month:     Number(monthSel.value),
-      quincena:  Number(quincenaSel.value),
       amount:    Number(amountIn.value),
       status:    paidDate ? 'paid' : 'pending',
       paidDate,
@@ -411,14 +396,14 @@ function openPaymentForm(id) {
 
 function exportData(format) {
   const filtered = applyFilter(state.payments, _filter);
-  const columns = ['Jugador', 'Categoría', 'Año', 'Quincena', 'Monto', 'Estado', 'Fecha de pago'];
+  const columns = ['Jugador', 'Categoría', 'Año', 'Mes', 'Monto', 'Estado', 'Fecha de pago'];
   const rows = filtered.map((p) => {
     const pl = state.players.find((x) => x.id === p.playerId);
     return [
       pl?.name || '—',
       pl?.category || '—',
       p.year,
-      `Q${p.quincena}`,
+      monthName(Number(p.month) - 1),
       formatMXN(p.amount).replace('$', '').trim(),
       p.status === 'paid' ? 'Pagado' : 'Pendiente',
       p.paidDate ? formatDate(p.paidDate) : '—',
@@ -435,7 +420,7 @@ function exportData(format) {
         Jugador: pl?.name || '',
         Categoría: pl?.category || '',
         Año: p.year,
-        Quincena: `Q${p.quincena}`,
+        Mes: monthName(Number(p.month) - 1),
         Monto: p.amount,
         Estado: p.status === 'paid' ? 'Pagado' : 'Pendiente',
         'Fecha de pago': p.paidDate || '',
