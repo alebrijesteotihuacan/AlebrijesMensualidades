@@ -239,25 +239,53 @@ async function onCopy(paymentId) {
   }
 }
 
-// === FORMULARIO PAGO (UX mejorada: búsqueda, chips de período, contexto) ===
+// === FORMULARIO PAGO (rehecho: bulletproof + UX clara) ===
 
 export function openPaymentForm(id, preSelectedPlayerId = null) {
   const editing = id ? state.payments.find((p) => p.id === id) : null;
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
+  const todayDay = today.getDate();
 
-  // Estado de selección (cambia cuando el usuario busca y elige jugador)
+  // Estado mutable
   let selectedPlayer = editing
     ? state.players.find((p) => p.id === editing.playerId)
     : (preSelectedPlayerId ? state.players.find((p) => p.id === preSelectedPlayerId) : null);
+  let selYear  = Number(editing?.year  ?? currentYear);
+  let selMonth = Number(editing?.month ?? currentMonth);
+  let paidDay  = editing?.paidDate ? Number(editing.paidDate.slice(8, 10)) : null;
+  let amount   = editing?.amount ?? (selectedPlayer ? amountForPlayer(selectedPlayer) : null);
 
-  // Estado del período seleccionado (year, month)
-  let selYear  = editing?.year  ?? currentYear;
-  let selMonth = editing?.month ?? currentMonth;
+  // --- Render del bloque de jugador ---
+  function renderPlayerBlock() {
+    if (selectedPlayer) {
+      const amt = amountForPlayer(selectedPlayer);
+      return `
+        <button type="button" class="player-picker is-selected" data-action="change-player" aria-label="Cambiar jugador">
+          <div class="avatar size-md" style="${avatarGradient(selectedPlayer)}">${escapeHTML(initialsOf(selectedPlayer.name))}</div>
+          <div class="flex-1 min-w-0 text-left">
+            <p class="pp-name truncate">${escapeHTML(selectedPlayer.name)}</p>
+            <p class="pp-meta truncate">${escapeHTML(selectedPlayer.category || 'Sin categoría')} · día ${selectedPlayer.paymentDay} · ${escapeHTML(formatMXN(amt))}/mes</p>
+          </div>
+          <span class="pp-check">${ICON.check}</span>
+          <span class="pp-change">Cambiar</span>
+        </button>
+      `;
+    }
+    return `
+      <div class="player-picker-empty">
+        <div class="relative">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+          <input id="py-player-search" type="text" autocomplete="off" placeholder="Busca un jugador por nombre o teléfono…" class="input pl-9" />
+        </div>
+        <ul id="py-player-list" class="player-list" role="listbox" aria-label="Lista de jugadores"></ul>
+      </div>
+    `;
+  }
 
-  // Genera los 6 chips de meses: 3 atrás + actual + 2 adelante
-  function buildMonthChips() {
+  // --- Render de los chips de período ---
+  function renderPeriodChips() {
     const chips = [];
     for (let i = -3; i <= 2; i++) {
       const mAbs = currentMonth + i;
@@ -269,133 +297,201 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
         Number(pay.month) === realM &&
         pay.status === 'paid'
       ) : false;
-      const label = `${monthShort(realM - 1)} ${yAbs !== currentYear ? `'${String(yAbs).slice(-2)}` : ''}`;
-      chips.push({ y: yAbs, m: realM, label, isPaid });
+      const isCurrent = realM === currentMonth && yAbs === currentYear;
+      const label = isCurrent ? 'Este mes' : `${monthShort(realM - 1)} ${yAbs !== currentYear ? `'${String(yAbs).slice(-2)}` : ''}`;
+      const monthFull = monthName(realM - 1);
+      chips.push({ y: yAbs, m: realM, label, monthFull, isPaid, isCurrent });
     }
-    return chips;
-  }
-
-  function renderPlayerBlock() {
-    if (selectedPlayer) {
-      return `
-        <div class="selected-player">
-          <div class="avatar size-md" style="${avatarGradient(selectedPlayer)}">${escapeHTML(initialsOf(selectedPlayer.name))}</div>
-          <div class="flex-1 min-w-0">
-            <p class="sp-name truncate">${escapeHTML(selectedPlayer.name)}</p>
-            <p class="sp-meta">${escapeHTML(selectedPlayer.category || 'Sin categoría')} · día ${selectedPlayer.paymentDay} · ${escapeHTML(formatMXN(amountForPlayer(selectedPlayer)))}</p>
-          </div>
-          <button type="button" data-change-player class="btn btn-ghost btn-sm">Cambiar</button>
-        </div>
-      `;
-    }
-    return `
-      <div class="combobox">
-        <input id="py-player-search" type="text" autocomplete="off" placeholder="Buscar jugador por nombre o teléfono..." class="input" />
-        <ul id="py-player-dropdown" class="combobox-dropdown" role="listbox" hidden></ul>
-      </div>
-    `;
-  }
-
-  function renderPeriodChips() {
-    const chips = buildMonthChips();
     return `
       <div class="period-chips" role="radiogroup" aria-label="Mes del pago">
         ${chips.map((c) => `
           <button type="button"
             class="period-chip ${(c.y === selYear && c.m === selMonth) ? 'is-active' : ''} ${c.isPaid ? 'is-paid' : ''}"
+            data-action="select-period"
             data-period="${c.y}-${c.m}"
-            ${c.isPaid ? 'disabled title="Este mes ya está pagado"' : ''}
+            ${c.isPaid ? 'disabled' : ''}
             role="radio"
-            aria-checked="${(c.y === selYear && c.m === selMonth)}">
-            ${c.isPaid ? '<span class="pc-tick">✓</span>' : ''}${escapeHTML(c.label)}
+            aria-checked="${(c.y === selYear && c.m === selMonth)}"
+            title="${escapeHTML(c.monthFull + ' ' + c.y)}${c.isPaid ? ' (ya pagado)' : ''}">
+            ${c.isPaid ? '<span class="pc-tick">✓</span>' : ''}
+            <span>${escapeHTML(c.label)}</span>
           </button>
         `).join('')}
       </div>
     `;
   }
 
-  const initialDay = editing?.paidDate ? Number(editing.paidDate.slice(8, 10)) : '';
-  const initialAmount = editing?.amount ?? (selectedPlayer ? amountForPlayer(selectedPlayer) : '');
+  // --- Render del monto ---
+  function renderAmount() {
+    const val = (amount != null && amount !== '') ? String(amount) : '';
+    const hint = selectedPlayer
+      ? `Mensualidad de ${escapeHTML(selectedPlayer.name)}: ${escapeHTML(formatMXN(amountForPlayer(selectedPlayer)))}`
+      : 'Selecciona un jugador para sugerir un monto';
+    return `
+      <div class="amount-field">
+        <span class="amount-prefix">$</span>
+        <input id="py-amount" type="number" min="0" step="50" inputmode="numeric" class="input tabular amount-input" value="${val}" placeholder="0" />
+        <span class="amount-suffix">MXN</span>
+      </div>
+      <p class="form-hint" id="amount-hint">${hint}</p>
+    `;
+  }
+
+  // --- Render del día ---
+  function renderDay() {
+    const dayVal = paidDay != null ? String(paidDay) : '';
+    const dayHint = paidDay
+      ? `✅ Se registrará como PAGADO el día ${paidDay}.`
+      : 'Déjalo vacío para registrar como pendiente.';
+    return `
+      <div class="day-field">
+        <input id="py-paid-day" type="number" min="1" max="31" inputmode="numeric" class="input tabular" value="${dayVal}" placeholder="Día del mes" />
+        <button type="button" class="btn btn-secondary shrink-0" data-action="today">${ICON.calendar}<span>Hoy</span></button>
+      </div>
+      <p class="form-hint" id="paid-hint">${dayHint}</p>
+    `;
+  }
 
   const body = `
-    <form id="form-payment" class="flex flex-col gap-5" novalidate>
-      <div>
-        <div class="step-label"><span class="step-num">1</span><span>Jugador</span></div>
-        <div id="player-block">${renderPlayerBlock()}</div>
-      </div>
-
-      <div>
-        <div class="step-label"><span class="step-num">2</span><span>Período</span></div>
-        <div id="period-block">${renderPeriodChips()}</div>
-      </div>
-
-      <div>
-        <div class="step-label"><span class="step-num">3</span><span>Monto</span></div>
-        <input id="py-amount" name="amount" type="number" min="0" step="50" required inputmode="numeric" class="input tabular" value="${initialAmount}" placeholder="0" />
-        <p class="form-hint" id="amount-hint">${selectedPlayer ? `Mensualidad sugerida: ${escapeHTML(formatMXN(amountForPlayer(selectedPlayer)))}` : 'Selecciona un jugador para sugerir monto'}</p>
-      </div>
-
-      <div>
-        <div class="step-label"><span class="step-num">4</span><span>Día de pago</span></div>
-        <div class="flex items-center gap-2">
-          <input id="py-paid-day" name="paidDay" type="number" min="1" max="31" inputmode="numeric" class="input tabular" value="${initialDay}" placeholder="Ej. 15" />
-          <button type="button" data-today class="btn btn-secondary shrink-0">Hoy</button>
+    <form id="form-payment" class="form-stack" novalidate>
+      <section class="form-section">
+        <div class="form-section-head">
+          <span class="step-num">1</span>
+          <h3 class="form-section-title">Jugador</h3>
         </div>
-        <p class="form-hint" id="paid-hint">Déjalo vacío si el pago aún no se realiza (queda pendiente).</p>
-      </div>
+        <div id="player-block">${renderPlayerBlock()}</div>
+      </section>
+
+      <section class="form-section">
+        <div class="form-section-head">
+          <span class="step-num">2</span>
+          <h3 class="form-section-title">Período</h3>
+        </div>
+        <div id="period-block">${renderPeriodChips()}</div>
+      </section>
+
+      <section class="form-section">
+        <div class="form-section-head">
+          <span class="step-num">3</span>
+          <h3 class="form-section-title">Monto</h3>
+        </div>
+        <div id="amount-block">${renderAmount()}</div>
+      </section>
+
+      <section class="form-section">
+        <div class="form-section-head">
+          <span class="step-num">4</span>
+          <h3 class="form-section-title">Día de pago</h3>
+        </div>
+        <div id="day-block">${renderDay()}</div>
+      </section>
+
+      <div id="summary-block" class="payment-summary">${renderSummary()}</div>
 
       <p id="py-error" class="form-error" hidden></p>
     </form>
   `;
 
+  function renderSummary() {
+    if (!selectedPlayer) {
+      return `<p class="summary-empty">Selecciona un jugador para ver el resumen del pago.</p>`;
+    }
+    const amt = amount != null && amount !== '' ? Number(amount) : 0;
+    const periodLabel = `${monthName(selMonth - 1)} ${selYear}`;
+    const dayLabel = paidDay != null ? `día ${paidDay}` : 'sin fecha (pendiente)';
+    const isPaid = paidDay != null;
+    return `
+      <div class="summary-row">
+        <span class="summary-label">Jugador</span>
+        <span class="summary-value">${escapeHTML(selectedPlayer.name)}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Período</span>
+        <span class="summary-value">${escapeHTML(periodLabel)}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Monto</span>
+        <span class="summary-value tabular-nums">${escapeHTML(formatMXN(amt))}</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">Fecha</span>
+        <span class="summary-value">${dayLabel}</span>
+      </div>
+      <div class="summary-status ${isPaid ? 'is-paid' : 'is-pending'}">
+        <span class="status-dot ${isPaid ? 'dot-success' : 'dot-warning'}"></span>
+        <span>${isPaid ? 'Pagado' : 'Pendiente'}</span>
+      </div>
+    `;
+  }
+
   const footer = `
-    <button type="button" data-cancel class="btn btn-secondary">Cancelar</button>
-    <button type="button" data-save class="btn btn-primary">${editing ? 'Guardar cambios' : 'Registrar pago'}</button>
+    <button type="button" class="btn btn-ghost" data-action="cancel">Cancelar</button>
+    <button type="button" class="btn btn-primary" data-action="save">${ICON.check}<span>${editing ? 'Guardar cambios' : 'Registrar pago'}</span></button>
   `;
 
   const m = openModal({
     title: editing ? 'Editar pago' : 'Registrar pago',
+    subtitle: editing ? 'Modifica el monto o la fecha del pago.' : 'Selecciona jugador, mes, monto y día.',
     body,
     footer,
     size: 'lg',
   });
 
   if (!m?.panel) {
-    console.error('[openPaymentForm] No se pudo abrir el modal');
+    console.error('[openPaymentForm] modal no abrió');
     return;
   }
 
   const panel = m.panel;
+  const form = panel.querySelector('#form-payment');
 
-  // === Helpers ===
-  function updateAmountHint() {
-    const hint = panel.querySelector('#amount-hint');
-    if (!hint) return;
-    hint.textContent = selectedPlayer
-      ? `Mensualidad sugerida: ${formatMXN(amountForPlayer(selectedPlayer))}`
-      : 'Selecciona un jugador para sugerir monto';
-  }
-
-  function repaintPlayer() {
+  // === Helpers de re-render ===
+  function rerenderPlayer() {
     panel.querySelector('#player-block').innerHTML = renderPlayerBlock();
     if (selectedPlayer) attachChangePlayer();
-    else attachSearch();
-    updateAmountHint();
+    else attachPlayerSearch();
+    rerenderSummary();
   }
-
-  function repaintChips() {
+  function rerenderChips() {
     panel.querySelector('#period-block').innerHTML = renderPeriodChips();
     attachChips();
+    rerenderSummary();
+  }
+  function rerenderAmount() {
+    panel.querySelector('#amount-block').innerHTML = renderAmount();
+    const ai = panel.querySelector('#py-amount');
+    ai?.addEventListener('input', () => { amount = ai.value === '' ? null : Number(ai.value); rerenderSummary(); });
+    rerenderSummary();
+  }
+  function rerenderDay() {
+    panel.querySelector('#day-block').innerHTML = renderDay();
+    const di = panel.querySelector('#py-paid-day');
+    di?.addEventListener('input', () => { paidDay = di.value === '' ? null : Number(di.value); rerenderDayHint(); rerenderSummary(); });
+    panel.querySelector('[data-action="today"]')?.addEventListener('click', () => handleToday());
+    rerenderDayHint();
+    rerenderSummary();
+  }
+  function rerenderDayHint() {
+    const di = panel.querySelector('#py-paid-day');
+    const hint = panel.querySelector('#paid-hint');
+    if (!di || !hint) return;
+    hint.textContent = di.value
+      ? `✅ Se registrará como PAGADO el día ${di.value}.`
+      : 'Déjalo vacío para registrar como pendiente.';
+  }
+  function rerenderSummary() {
+    const sb = panel.querySelector('#summary-block');
+    if (sb) sb.innerHTML = renderSummary();
   }
 
-  // === Selección de jugador ===
   function attachChangePlayer() {
-    panel.querySelector('[data-change-player]')?.addEventListener('click', () => {
+    panel.querySelector('[data-action="change-player"]')?.addEventListener('click', () => {
       selectedPlayer = null;
-      repaintPlayer();
-      repaintChips();
-      const amtIn = panel.querySelector('[name=amount]');
-      if (amtIn && !editing) amtIn.value = '';
+      amount = null;
+      rerenderPlayer();
+      rerenderChips();
+      rerenderAmount();
+      rerenderDay();
       setTimeout(() => panel.querySelector('#py-player-search')?.focus(), 50);
     });
   }
@@ -404,180 +500,125 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
     const p = state.players.find((x) => x.id === id);
     if (!p) return;
     selectedPlayer = p;
-    const amtIn = panel.querySelector('[name=amount]');
-    if (amtIn && !amtIn.value && !editing) amtIn.value = amountForPlayer(p);
-    repaintPlayer();
-    repaintChips();
-    const input = panel.querySelector('#py-player-search');
-    if (input) input.value = '';
-    setTimeout(() => panel.querySelector('[name=amount]')?.focus(), 50);
+    amount = amountForPlayer(p);
+    rerenderPlayer();
+    rerenderChips();
+    rerenderAmount();
+    rerenderDay();
+    const search = panel.querySelector('#py-player-search');
+    if (search) search.value = '';
   }
 
-  function attachSearch() {
+  function attachPlayerSearch() {
     const input = panel.querySelector('#py-player-search');
-    const dropdown = panel.querySelector('#py-player-dropdown');
-    if (!input || !dropdown) return;
+    const list = panel.querySelector('#py-player-list');
+    if (!input || !list) return;
 
-    let highlightedIdx = -1;
-
-    function getMatches(query) {
+    function renderMatches(query) {
       const q = (query || '').toLowerCase().trim();
-      return state.players
+      const matches = state.players
         .filter((p) => !p.exempt)
         .filter((p) => !q || p.name.toLowerCase().includes(q) || (p.phone || '').toLowerCase().includes(q))
-        .slice(0, 8);
-    }
+        .slice(0, 50);
 
-    function render(query) {
-      const matches = getMatches(query);
-      highlightedIdx = matches.length > 0 ? 0 : -1;
       if (matches.length === 0) {
-        dropdown.innerHTML = `<li class="combobox-empty">Sin resultados</li>`;
-      } else {
-        dropdown.innerHTML = matches.map((p, i) => `
-          <li class="combobox-item ${i === highlightedIdx ? 'is-highlighted' : ''}" data-id="${p.id}" role="option">
-            <div class="avatar size-sm" style="${avatarGradient(p)}">${escapeHTML(initialsOf(p.name))}</div>
-            <div class="flex-1 min-w-0">
-              <p class="ci-name truncate">${escapeHTML(p.name)}</p>
-              <p class="ci-meta">${escapeHTML(p.category || '—')} · día ${p.paymentDay}</p>
-            </div>
-            <span class="ci-amt">${escapeHTML(formatMXN(amountForPlayer(p)))}</span>
-          </li>
-        `).join('');
-        dropdown.querySelectorAll('li[data-id]').forEach((li) => {
-          li.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            selectPlayer(li.dataset.id);
-          });
-          li.addEventListener('mouseenter', () => {
-            highlightedIdx = [...dropdown.querySelectorAll('li[data-id]')].indexOf(li);
-            updateHighlight();
-          });
-        });
+        list.innerHTML = `<li class="player-list-empty">Sin resultados. Crea al jugador primero.</li>`;
+        return;
       }
-      dropdown.hidden = false;
-    }
+      list.innerHTML = matches.map((p) => `
+        <li>
+          <button type="button" class="player-list-item" data-action="select-player" data-id="${p.id}">
+            <div class="avatar size-sm" style="${avatarGradient(p)}">${escapeHTML(initialsOf(p.name))}</div>
+            <div class="flex-1 min-w-0 text-left">
+              <p class="pli-name truncate">${escapeHTML(p.name)}</p>
+              <p class="pli-meta truncate">${escapeHTML(p.category || 'Sin categoría')} · día ${p.paymentDay}</p>
+            </div>
+            <span class="pli-amt tabular-nums">${escapeHTML(formatMXN(amountForPlayer(p)))}</span>
+          </button>
+        </li>
+      `).join('');
 
-    function updateHighlight() {
-      dropdown.querySelectorAll('li[data-id]').forEach((li, i) => {
-        li.classList.toggle('is-highlighted', i === highlightedIdx);
+      list.querySelectorAll('[data-action="select-player"]').forEach((b) => {
+        b.addEventListener('click', (e) => {
+          e.preventDefault();
+          selectPlayer(b.dataset.id);
+        });
       });
     }
 
-    function closeDropdown() { dropdown.hidden = true; }
-
-    input.addEventListener('input', () => { render(input.value); });
-    input.addEventListener('focus', () => render(input.value));
-    input.addEventListener('keydown', (e) => {
-      const items = [...dropdown.querySelectorAll('li[data-id]')];
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
-        updateHighlight();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        highlightedIdx = Math.max(highlightedIdx - 1, 0);
-        updateHighlight();
-      } else if (e.key === 'Enter') {
-        if (highlightedIdx >= 0 && items[highlightedIdx]) {
-          e.preventDefault();
-          selectPlayer(items[highlightedIdx].dataset.id);
-        }
-      } else if (e.key === 'Escape') {
-        closeDropdown();
-      }
-    });
-
-    // Cerrar al hacer click fuera (instalado una sola vez por sesión del form)
-    const onDocMouseDown = (e) => {
-      if (!panel.contains(e.target)) closeDropdown();
-    };
-    setTimeout(() => document.addEventListener('mousedown', onDocMouseDown), 0);
-    m._cleanup = () => document.removeEventListener('mousedown', onDocMouseDown);
+    input.addEventListener('input', () => renderMatches(input.value));
+    input.addEventListener('focus', () => renderMatches(input.value));
+    setTimeout(() => renderMatches(''), 0);
   }
 
-  // === Período (chips) ===
   function attachChips() {
     panel.querySelectorAll('.period-chip:not([disabled])').forEach((chip) => {
       chip.addEventListener('click', () => {
         const [y, mo] = chip.dataset.period.split('-').map(Number);
         selYear = y;
         selMonth = mo;
-        panel.querySelectorAll('.period-chip').forEach((c) => {
-          const [cy, cm] = c.dataset.period.split('-').map(Number);
-          c.classList.toggle('is-active', cy === y && cm === mo);
-        });
+        // Si el día seleccionado no aplica al nuevo mes, reset
+        if (paidDay != null) {
+          const lastDay = new Date(selYear, selMonth, 0).getDate();
+          if (paidDay > lastDay) paidDay = lastDay;
+        }
+        rerenderChips();
       });
     });
   }
 
-  // === Botón Hoy ===
-  panel.querySelector('[data-today]')?.addEventListener('click', () => {
+  function handleToday() {
     const t = new Date();
     const isCurrentPeriod = selYear === t.getFullYear() && selMonth === (t.getMonth() + 1);
-    let day;
-    if (isCurrentPeriod) {
-      day = t.getDate();
+    paidDay = isCurrentPeriod ? t.getDate() : new Date(selYear, selMonth, 0).getDate();
+    rerenderDay();
+  }
+
+  function attachInitial() {
+    if (selectedPlayer) {
+      attachChangePlayer();
     } else {
-      day = new Date(selYear, selMonth, 0).getDate();
+      attachPlayerSearch();
     }
-    const dayIn = panel.querySelector('[name=paidDay]');
-    if (dayIn) {
-      dayIn.value = String(day);
-      dayIn.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  });
-
-  // === Hint del día ===
-  function syncPaidHint() {
-    const dayIn = panel.querySelector('[name=paidDay]');
-    const hint = panel.querySelector('#paid-hint');
-    if (!dayIn || !hint) return;
-    hint.textContent = dayIn.value
-      ? '✅ Se registrará como PAGADO en esa fecha.'
-      : 'Déjalo vacío si el pago aún no se realiza (queda pendiente).';
-  }
-  panel.querySelector('[name=paidDay]')?.addEventListener('input', syncPaidHint);
-  syncPaidHint();
-
-  // === Init ===
-  if (selectedPlayer) {
-    attachChangePlayer();
     attachChips();
-  } else {
-    attachSearch();
-    attachChips();
-    setTimeout(() => panel.querySelector('#py-player-search')?.focus(), 100);
+    const ai = panel.querySelector('#py-amount');
+    ai?.addEventListener('input', () => { amount = ai.value === '' ? null : Number(ai.value); rerenderSummary(); });
+    const di = panel.querySelector('#py-paid-day');
+    di?.addEventListener('input', () => { paidDay = di.value === '' ? null : Number(di.value); rerenderDayHint(); rerenderSummary(); });
+    panel.querySelector('[data-action="today"]')?.addEventListener('click', handleToday);
   }
 
-  // === Cancelar / Guardar ===
-  panel.querySelector('[data-cancel]')?.addEventListener('click', () => m.close());
-  panel.querySelector('[data-save]')?.addEventListener('click', async () => {
+  function showErr(msg) {
+    const el = panel.querySelector('#py-error');
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function handleSave() {
     const errEl = panel.querySelector('#py-error');
     if (errEl) errEl.hidden = true;
 
     if (!selectedPlayer) {
-      showErr('Selecciona un jugador'); return;
+      showErr('Selecciona un jugador');
+      panel.querySelector('#py-player-search')?.focus();
+      return;
     }
-    const amountIn = panel.querySelector('[name=amount]');
-    const dayIn    = panel.querySelector('[name=paidDay]');
-
-    const amountNum = Number(amountIn?.value);
+    const amountNum = amount != null && amount !== '' ? Number(amount) : NaN;
     if (!Number.isFinite(amountNum) || amountNum < 0) {
-      showErr('Monto inválido'); amountIn?.focus(); return;
+      showErr('Ingresa un monto válido (≥ 0)');
+      panel.querySelector('#py-amount')?.focus();
+      return;
     }
-
-    const dayVal = (dayIn?.value || '').trim();
-    let paidDate = null;
-    if (dayVal !== '') {
-      const d = Number(dayVal);
-      if (!Number.isFinite(d) || d < 1 || d > 31) {
-        showErr('El día debe estar entre 1 y 31'); dayIn?.focus(); return;
+    if (paidDay != null) {
+      if (!Number.isFinite(paidDay) || paidDay < 1 || paidDay > 31) {
+        showErr('El día debe estar entre 1 y 31');
+        panel.querySelector('#py-paid-day')?.focus();
+        return;
       }
       const lastDay = new Date(selYear, selMonth, 0).getDate();
-      const safeDay = Math.min(d, lastDay);
-      paidDate = `${selYear}-${String(selMonth).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+      paidDay = Math.min(paidDay, lastDay);
     }
 
     const data = {
@@ -585,13 +626,17 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
       year:      selYear,
       month:     selMonth,
       amount:    amountNum,
-      status:    paidDate ? 'paid' : 'pending',
-      paidDate,
+      status:    paidDay != null ? 'paid' : 'pending',
+      paidDate:  paidDay != null
+        ? `${selYear}-${String(selMonth).padStart(2, '0')}-${String(paidDay).padStart(2, '0')}`
+        : null,
     };
 
-    const saveBtn = panel.querySelector('[data-save]');
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Guardando…'; }
-
+    const saveBtn = panel.querySelector('[data-action="save"]');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span><span>Guardando…</span>';
+    }
     try {
       if (editing) {
         await payments.update(editing.id, data);
@@ -601,28 +646,32 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
         toast('Pago registrado', 'success');
       }
       m.close();
-    } catch (e) {
-      console.error('[openPaymentForm] save error', e);
+    } catch (err) {
+      console.error('[openPaymentForm] save error', err);
       toast('Error al guardar', 'error');
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.textContent = editing ? 'Guardar cambios' : 'Registrar pago';
+        saveBtn.innerHTML = `${ICON.check}<span>${editing ? 'Guardar cambios' : 'Registrar pago'}</span>`;
       }
     }
+  }
 
-    function showErr(msg) {
-      if (!errEl) return;
-      errEl.textContent = msg;
-      errEl.hidden = false;
-    }
+  // === Un solo handler delegado para todos los clicks del modal ===
+  panel.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'cancel') m.close();
+    else if (action === 'save') handleSave();
   });
 
-  // === Limpieza al cerrar ===
-  const _origClose = m.close;
-  m.close = () => {
-    try { m._cleanup && m._cleanup(); } catch (_) {}
-    _origClose();
-  };
+  // === Submit del form (Enter en cualquier input) ===
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleSave();
+  });
+
+  attachInitial();
 }
 
 // === EXPORTAR ===

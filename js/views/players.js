@@ -389,102 +389,296 @@ function openPlayerDrawer(id) {
 function openPlayerForm(id) {
   const editing = id ? state.players.find((p) => p.id === id) : null;
   const cats = state.categories;
+  const isEdit = Boolean(editing);
 
-  const body = `
-    <form id="form-player" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5" novalidate>
-      <div class="sm:col-span-2">
-        <label class="label" for="pf-name">Nombre completo *</label>
-        <input id="pf-name" name="name" type="text" required autocomplete="off" class="input" value="${editing ? escapeHTML(editing.name) : ''}" />
+  // Estado mutable (para previews en vivo)
+  let data = {
+    name:        editing?.name ?? '',
+    category:    editing?.category ?? '',
+    phone:       editing?.phone ?? '',
+    paymentDay:  editing?.paymentDay ?? 1,
+    customAmount: editing?.customAmount ?? '',
+    exempt:      editing?.exempt ?? false,
+    notes:       editing?.notes ?? '',
+  };
+
+  function avatarPreview() {
+    const name = (data.name || '?').trim() || '?';
+    const seed = name + (data.category || '');
+    const pal = avatarGradient(seed);
+    const initials = String(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
+    return `<div class="avatar size-xl" style="${pal}" aria-hidden="true">${escapeHTML(initials)}</div>`;
+  }
+
+  function categoryOptions() {
+    return cats.map((c) => `
+      <button type="button"
+        class="cat-card ${data.category === c.name ? 'is-selected' : ''}"
+        data-action="select-category"
+        data-cat="${escapeHTML(c.name)}">
+        <span class="cat-card-name">${escapeHTML(c.name)}</span>
+        <span class="cat-card-amt tabular-nums">${escapeHTML(formatMXN(c.amount))}</span>
+      </button>
+    `).join('');
+  }
+
+  function dayChips() {
+    const options = [1, 5, 10, 15, 20, 25, 28];
+    return options.map((d) => `
+      <button type="button"
+        class="day-chip ${data.paymentDay === d ? 'is-active' : ''}"
+        data-action="select-day"
+        data-day="${d}">${d}</button>
+    `).join('');
+  }
+
+  function previewBlock() {
+    if (!data.name.trim()) {
+      return `<p class="preview-empty">Vista previa del jugador</p>`;
+    }
+    const catObj = cats.find((c) => c.name === data.category);
+    const monthly = data.customAmount !== '' && data.customAmount != null
+      ? Number(data.customAmount)
+      : (catObj ? Number(catObj.amount) : 0);
+    return `
+      <div class="player-preview">
+        ${avatarPreview()}
+        <div class="flex-1 min-w-0">
+          <p class="preview-name truncate">${escapeHTML(data.name)}</p>
+          <p class="preview-meta truncate">${escapeHTML(data.category || 'Sin categoría')}${data.exempt ? ' · Becado' : ` · día ${data.paymentDay} · ${escapeHTML(formatMXN(monthly))}/mes`}</p>
+        </div>
       </div>
-      <div class="sm:col-span-2">
-        <label class="label" for="pf-category">Categoría *</label>
-        <select id="pf-category" name="category" required class="select">
-          <option value="">Selecciona…</option>
-          ${cats.map((c) => `<option value="${escapeHTML(c.name)}" ${editing?.category === c.name ? 'selected' : ''}>${escapeHTML(c.name)} — ${formatMXN(c.amount)}</option>`).join('')}
-        </select>
-      </div>
-      <div>
-        <label class="label" for="pf-phone">Teléfono</label>
-        <input id="pf-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" class="input" value="${editing ? escapeHTML(editing.phone || '') : ''}" placeholder="55 1234 5678" />
-      </div>
-      <div>
-        <label class="label" for="pf-day">Día de pago *</label>
-        <input id="pf-day" name="paymentDay" type="number" min="1" max="31" required class="input tabular" value="${editing?.paymentDay ?? 1}" />
-      </div>
-      <div class="sm:col-span-2">
-        <label class="label" for="pf-custom">Monto personalizado (MXN)</label>
-        <input id="pf-custom" name="customAmount" type="number" min="0" step="50" inputmode="numeric" class="input tabular" value="${editing?.customAmount ?? ''}" placeholder="Opcional — reemplaza el monto de la categoría" />
-      </div>
-      <div class="sm:col-span-2">
-        <label class="checkbox-row" for="pf-exempt">
-          <input id="pf-exempt" type="checkbox" name="exempt" ${editing?.exempt ? 'checked' : ''} />
-          <span class="text-sm font-medium">Jugador becado o exento</span>
-        </label>
-      </div>
-      <div class="sm:col-span-2">
-        <label class="label" for="pf-notes">Notas</label>
-        <textarea id="pf-notes" name="notes" rows="2" class="textarea" placeholder="Información adicional…">${editing ? escapeHTML(editing.notes || '') : ''}</textarea>
-      </div>
-      <p id="pf-error" class="sm:col-span-2 form-error" hidden></p>
-    </form>
-  `;
+    `;
+  }
+
+  function body() {
+    return `
+      <form id="form-player" class="form-stack" novalidate>
+        <section class="form-section">
+          <div class="form-section-head">
+            <span class="step-num">1</span>
+            <h3 class="form-section-title">Identidad</h3>
+          </div>
+          <div class="form-grid">
+            <div class="form-grid-full">
+              <label class="label" for="pf-name">Nombre completo *</label>
+              <input id="pf-name" name="name" type="text" required autocomplete="off" class="input" placeholder="Ej. Juan Pérez" value="${escapeHTML(data.name)}" data-sync="name" />
+            </div>
+            <div>
+              <label class="label" for="pf-phone">Teléfono (WhatsApp)</label>
+              <input id="pf-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" class="input" placeholder="55 1234 5678" value="${escapeHTML(data.phone)}" data-sync="phone" />
+              <p class="form-hint">Para enviar mensajes de pago.</p>
+            </div>
+            <div>
+              <label class="label" for="pf-day-input">Día de pago *</label>
+              <input id="pf-day-input" name="paymentDay" type="number" min="1" max="31" required class="input tabular" value="${data.paymentDay}" data-sync="paymentDay" />
+              <p class="form-hint">Día del mes (1-31).</p>
+            </div>
+          </div>
+          <div class="day-chips" role="group" aria-label="Días comunes">${dayChips()}</div>
+        </section>
+
+        <section class="form-section">
+          <div class="form-section-head">
+            <span class="step-num">2</span>
+            <h3 class="form-section-title">Categoría</h3>
+          </div>
+          ${cats.length === 0
+            ? `<p class="form-hint">No hay categorías. <a href="#/categories" class="underline">Crear una primero</a>.</p>`
+            : `<div class="cat-cards">${categoryOptions()}</div>
+               <input type="hidden" name="category" value="${escapeHTML(data.category)}" data-sync="category" />`
+          }
+        </section>
+
+        <section class="form-section">
+          <div class="form-section-head">
+            <span class="step-num">3</span>
+            <h3 class="form-section-title">Monto personalizado (opcional)</h3>
+          </div>
+          <div class="amount-field">
+            <span class="amount-prefix">$</span>
+            <input id="pf-custom" name="customAmount" type="number" min="0" step="50" inputmode="numeric" class="input tabular amount-input" placeholder="0" value="${data.customAmount === '' || data.customAmount == null ? '' : data.customAmount}" data-sync="customAmount" />
+            <span class="amount-suffix">MXN</span>
+          </div>
+          <p class="form-hint">Si lo dejas vacío, se usa el monto de la categoría.</p>
+        </section>
+
+        <section class="form-section">
+          <div class="form-section-head">
+            <span class="step-num">4</span>
+            <h3 class="form-section-title">Detalles</h3>
+          </div>
+          <label class="switch-row" for="pf-exempt">
+            <div class="flex-1">
+              <p class="switch-title">Jugador becado o exento</p>
+              <p class="switch-sub">No genera cobros automáticos.</p>
+            </div>
+            <span class="switch-track ${data.exempt ? 'is-on' : ''}">
+              <input id="pf-exempt" type="checkbox" name="exempt" ${data.exempt ? 'checked' : ''} data-sync="exempt" />
+              <span class="switch-knob"></span>
+            </span>
+          </label>
+          <div class="form-grid form-grid-full" style="margin-top: 12px;">
+            <div class="form-grid-full">
+              <label class="label" for="pf-notes">Notas</label>
+              <textarea id="pf-notes" name="notes" rows="2" class="textarea" placeholder="Información adicional (tutor, alergias, comentarios…)" data-sync="notes">${escapeHTML(data.notes)}</textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section form-section--preview">
+          <div class="form-section-head">
+            <span class="step-num" aria-hidden="true">👁</span>
+            <h3 class="form-section-title">Vista previa</h3>
+          </div>
+          <div id="preview-block">${previewBlock()}</div>
+        </section>
+
+        <p id="pf-error" class="form-error" hidden></p>
+      </form>
+    `;
+  }
 
   const footer = `
-    <button data-cancel type="button" class="btn btn-secondary">Cancelar</button>
-    <button data-save type="button" class="btn btn-primary">${editing ? 'Guardar' : 'Crear jugador'}</button>
+    <button type="button" class="btn btn-ghost" data-action="cancel">Cancelar</button>
+    <button type="button" class="btn btn-primary" data-action="save">${ICON.check}<span>${isEdit ? 'Guardar cambios' : 'Crear jugador'}</span></button>
   `;
 
-  const m = openModal({ title: editing ? 'Editar jugador' : 'Nuevo jugador', body, footer, size: 'lg' });
+  const m = openModal({
+    title: isEdit ? 'Editar jugador' : 'Nuevo jugador',
+    subtitle: isEdit ? 'Modifica los datos del jugador.' : 'Da de alta un jugador. Paso 1: identidad. Paso 2: categoría.',
+    body: body(),
+    footer,
+    size: 'lg',
+  });
 
-  m.panel.querySelector('[data-cancel]').addEventListener('click', m.close);
-  m.panel.querySelector('[data-save]').addEventListener('click', async () => {
-    const f = m.panel.querySelector('#form-player');
-    const errEl = m.panel.querySelector('#pf-error');
+  if (!m?.panel) {
+    console.error('[openPlayerForm] modal no abrió');
+    return;
+  }
+  const panel = m.panel;
+  const form = panel.querySelector('#form-player');
 
-    const name = f.name.value.trim();
-    const category = f.category.value;
-    const day = Number(f.paymentDay.value);
-    const customRaw = f.customAmount.value.trim();
+  // === Sync inputs → estado ===
+  form.addEventListener('input', (e) => {
+    const t = e.target;
+    const key = t.dataset.sync;
+    if (!key) return;
+    if (t.type === 'checkbox') data[key] = t.checked;
+    else if (t.type === 'number') data[key] = t.value === '' ? '' : Number(t.value);
+    else data[key] = t.value;
+    updatePreview();
+    // Si cambió categoría → refrescar las cards (para el is-selected)
+    if (key === 'category') refreshCategoryCards();
+    // Si cambió el día → refrescar chips
+    if (key === 'paymentDay') refreshDayChips();
+  });
 
-    errEl.hidden = true;
-    if (!name) { showErr('El nombre es obligatorio'); f.name.focus(); return; }
-    if (!category) { showErr('Selecciona una categoría'); f.category.focus(); return; }
+  function updatePreview() {
+    const block = panel.querySelector('#preview-block');
+    if (block) block.innerHTML = previewBlock();
+  }
+  function refreshCategoryCards() {
+    const cards = panel.querySelector('.cat-cards');
+    if (cards) cards.innerHTML = categoryOptions();
+  }
+  function refreshDayChips() {
+    const chips = panel.querySelector('.day-chips');
+    if (chips) chips.innerHTML = dayChips();
+  }
+
+  // === Click handler delegado ===
+  panel.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'cancel') { m.close(); return; }
+    if (action === 'save') { handleSave(); return; }
+    if (action === 'select-category') {
+      data.category = btn.dataset.cat;
+      const hidden = form.querySelector('[name=category]');
+      if (hidden) hidden.value = data.category;
+      refreshCategoryCards();
+      updatePreview();
+      return;
+    }
+    if (action === 'select-day') {
+      const d = Number(btn.dataset.day);
+      data.paymentDay = d;
+      const di = form.querySelector('[name=paymentDay]');
+      if (di) di.value = String(d);
+      refreshDayChips();
+      updatePreview();
+      return;
+    }
+  });
+
+  // === Submit del form (Enter) ===
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleSave();
+  });
+
+  function showErr(msg) {
+    const el = panel.querySelector('#pf-error');
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function handleSave() {
+    const errEl = panel.querySelector('#pf-error');
+    if (errEl) errEl.hidden = true;
+
+    const name = (data.name || '').trim();
+    const category = (data.category || '').trim();
+    const day = Number(data.paymentDay);
+
+    if (!name) { showErr('El nombre es obligatorio'); return; }
+    if (!category) { showErr('Selecciona una categoría'); return; }
     if (!Number.isFinite(day) || day < 1 || day > 31) {
-      showErr('El día de pago debe estar entre 1 y 31'); f.paymentDay.focus(); return;
+      showErr('El día de pago debe estar entre 1 y 31'); return;
     }
-    if (customRaw !== '' && (Number(customRaw) < 0 || !Number.isFinite(Number(customRaw)))) {
-      showErr('El monto personalizado no es válido'); f.customAmount.focus(); return;
+    const customRaw = data.customAmount;
+    if (customRaw !== '' && customRaw != null && (Number(customRaw) < 0 || !Number.isFinite(Number(customRaw)))) {
+      showErr('El monto personalizado no es válido'); return;
     }
 
-    const data = {
+    const payload = {
       name,
       category,
-      phone: f.phone.value.trim(),
-      notes: f.notes.value.trim(),
-      paymentDay: day,
-      customAmount: customRaw === '' ? null : Number(customRaw),
-      exempt: f.exempt.checked,
+      phone:       (data.phone || '').trim(),
+      notes:       (data.notes || '').trim(),
+      paymentDay:  day,
+      customAmount: customRaw === '' || customRaw == null ? null : Number(customRaw),
+      exempt:      Boolean(data.exempt),
     };
 
+    const saveBtn = panel.querySelector('[data-action="save"]');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span><span>Guardando…</span>';
+    }
+
     try {
-      if (editing) {
-        await players.update(editing.id, data);
+      if (isEdit) {
+        await players.update(editing.id, payload);
         toast('Jugador actualizado', 'success');
       } else {
-        await players.add(data);
+        await players.add(payload);
         toast('Jugador creado', 'success');
       }
       m.close();
     } catch (err) {
-      console.error(err);
+      console.error('[openPlayerForm] save error', err);
       toast('Error al guardar', 'error');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `${ICON.check}<span>${isEdit ? 'Guardar cambios' : 'Crear jugador'}</span>`;
+      }
     }
-
-    function showErr(msg) {
-      errEl.textContent = msg;
-      errEl.hidden = false;
-    }
-  });
+  }
 }
 
 async function onDelete(id) {

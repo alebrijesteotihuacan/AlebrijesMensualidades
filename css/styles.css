@@ -386,19 +386,6 @@
   font-size: 13px;
 }
 
-/* Tarjeta de jugador seleccionado en form de pago */
-.selected-player {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  background: #FAFAFA;
-  border: 1px solid #E4E4E7;
-  border-radius: 8px;
-}
-.selected-player .sp-name { font-size: 14px; font-weight: 500; color: #18181B; }
-.selected-player .sp-meta { font-size: 11px; color: #71717A; margin-top: 2px; }
-
 /* ============================================
    PERIOD CHIPS (selector de mes en form de pago)
    ============================================ */
@@ -639,6 +626,393 @@
 .adeudo-group-label--overdue {
   background: #FEF2F2;
   color: #991B1B;
+}
+
+/* ============================================
+   FORM STACK (genérico para modales con varias secciones)
+   ============================================ */
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.form-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #52525B;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+.form-section-head .step-num {
+  background: #09090B;
+  color: #FFFFFF;
+  width: 20px;
+  height: 20px;
+}
+.form-section--preview {
+  background: #FAFAFA;
+  border: 1px dashed #E4E4E7;
+  border-radius: 10px;
+  padding: 14px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.form-grid-full { grid-column: 1 / -1; }
+@media (max-width: 480px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================
+   MODAL SUBTITLE
+   ============================================ */
+.modal-header-text { flex: 1; min-width: 0; }
+.modal-subtitle {
+  font-size: 0.78rem;
+  color: #71717A;
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+/* ============================================
+   PLAYER PICKER (form de pago paso 1)
+   ============================================ */
+.player-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+  text-align: left;
+}
+.player-picker:hover { background: #FAFAFA; border-color: #D4D4D8; }
+.player-picker.is-selected { background: #FAFAFA; border-color: #09090B; }
+.player-picker .pp-name { font-size: 14px; font-weight: 500; color: #09090B; }
+.player-picker .pp-meta { font-size: 11.5px; color: #71717A; margin-top: 2px; }
+.player-picker .pp-check {
+  width: 22px; height: 22px;
+  border-radius: 9999px;
+  background: #09090B;
+  color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.player-picker .pp-check svg { width: 14px; height: 14px; }
+.player-picker .pp-change {
+  font-size: 12px;
+  color: #52525B;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  flex-shrink: 0;
+}
+.player-picker:hover .pp-change { color: #09090B; }
+
+.player-picker-empty { display: flex; flex-direction: column; gap: 8px; }
+.player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #E4E4E7;
+  border-radius: 10px;
+  background: #FFFFFF;
+}
+.player-list:empty { display: none; }
+.player-list > li { border-bottom: 1px solid #F4F4F5; }
+.player-list > li:last-child { border-bottom: 0; }
+.player-list-empty {
+  padding: 18px 12px;
+  text-align: center;
+  color: #71717A;
+  font-size: 13px;
+}
+.player-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: background 100ms;
+}
+.player-list-item:hover { background: #FAFAFA; }
+.player-list-item .pli-name { font-size: 13.5px; font-weight: 500; color: #18181B; }
+.player-list-item .pli-meta { font-size: 11px; color: #71717A; margin-top: 2px; }
+.player-list-item .pli-amt { font-size: 12.5px; font-weight: 600; color: #18181B; flex-shrink: 0; }
+
+/* ============================================
+   AMOUNT FIELD (input con prefix/suffix)
+   ============================================ */
+.amount-field {
+  display: flex;
+  align-items: center;
+  border: 1px solid #E4E4E7;
+  border-radius: 6px;
+  background: white;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.amount-field:focus-within {
+  border-color: #09090B;
+  box-shadow: 0 0 0 3px rgba(9, 9, 11, 0.08);
+}
+.amount-prefix, .amount-suffix {
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #71717A;
+  background: #FAFAFA;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  border-color: #E4E4E7;
+}
+.amount-prefix { border-right: 1px solid #E4E4E7; }
+.amount-suffix { border-left: 1px solid #E4E4E7; }
+.amount-input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 0.6rem 0.8rem;
+  font-size: 1rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.amount-input:focus { outline: none; box-shadow: none; }
+
+/* ============================================
+   DAY FIELD (input + botón Hoy)
+   ============================================ */
+.day-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.day-field .input { flex: 1; }
+
+/* ============================================
+   PAYMENT SUMMARY (al pie del form de pago)
+   ============================================ */
+.payment-summary {
+  background: #FAFAFA;
+  border: 1px solid #E4E4E7;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.summary-label {
+  color: #71717A;
+  font-size: 12px;
+  font-weight: 500;
+}
+.summary-value {
+  color: #09090B;
+  font-weight: 500;
+  text-align: right;
+}
+.summary-empty {
+  color: #A1A1AA;
+  font-size: 12.5px;
+  text-align: center;
+  margin: 0;
+}
+.summary-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid #E4E4E7;
+  font-size: 13px;
+  font-weight: 600;
+}
+.summary-status.is-paid { color: #047857; }
+.summary-status.is-pending { color: #92400E; }
+
+/* ============================================
+   CATEGORY CARDS (form de jugador)
+   ============================================ */
+.cat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.cat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 120ms;
+}
+.cat-card:hover { background: #FAFAFA; border-color: #D4D4D8; }
+.cat-card.is-selected {
+  background: #09090B;
+  border-color: #09090B;
+  color: #FFFFFF;
+}
+.cat-card.is-selected .cat-card-amt { color: #D4D4D8; }
+.cat-card-name { font-size: 13px; font-weight: 500; line-height: 1.2; }
+.cat-card-amt { font-size: 12px; color: #52525B; font-weight: 500; }
+
+/* ============================================
+   DAY CHIPS (selector rápido de día)
+   ============================================ */
+.day-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.day-chip {
+  padding: 4px 10px;
+  border: 1px solid #E4E4E7;
+  border-radius: 9999px;
+  background: #FFFFFF;
+  color: #52525B;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 100ms;
+  font-variant-numeric: tabular-nums;
+}
+.day-chip:hover { background: #FAFAFA; border-color: #D4D4D8; }
+.day-chip.is-active {
+  background: #09090B;
+  color: #FFFFFF;
+  border-color: #09090B;
+}
+
+/* ============================================
+   SWITCH (toggle)
+   ============================================ */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: #FAFAFA;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.switch-row:hover { background: #F4F4F5; }
+.switch-title { font-size: 13.5px; font-weight: 500; color: #09090B; }
+.switch-sub   { font-size: 11.5px; color: #71717A; margin-top: 2px; }
+.switch-track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  background: #D4D4D8;
+  border-radius: 9999px;
+  transition: background 150ms;
+  flex-shrink: 0;
+}
+.switch-track .switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #FFFFFF;
+  border-radius: 9999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: left 150ms;
+}
+.switch-track.is-on { background: #09090B; }
+.switch-track.is-on .switch-knob { left: 18px; }
+.switch-track input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* ============================================
+   PLAYER PREVIEW (vista previa del form de jugador)
+   ============================================ */
+.player-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.player-preview .preview-name { font-size: 14px; font-weight: 500; color: #09090B; }
+.player-preview .preview-meta { font-size: 12px; color: #71717A; margin-top: 2px; }
+.preview-empty {
+  font-size: 12.5px;
+  color: #A1A1AA;
+  text-align: center;
+  margin: 0;
+  font-style: italic;
+}
+
+/* ============================================
+   AVATAR SIZE XL (para preview)
+   ============================================ */
+.avatar.size-xl {
+  width: 56px;
+  height: 56px;
+  font-size: 18px;
+}
+
+/* ============================================
+   BTN SPINNER
+   ============================================ */
+.btn-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 9999px;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
 }
 .adeudo-group-label--upcoming {
   background: #FFFBEB;

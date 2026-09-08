@@ -122,7 +122,7 @@ export function toast(message, type = 'info', duration = 3500) {
 }
 
 // ============ MODAL ============ //
-export function openModal({ title, body, footer, size = 'md' }) {
+export function openModal({ title, subtitle, body, footer, size = 'md' }) {
   const root = document.getElementById('modal-root');
   if (!root) return;
   root.innerHTML = '';
@@ -136,7 +136,10 @@ export function openModal({ title, body, footer, size = 'md' }) {
   wrap.innerHTML = `
     <div class="modal-panel ${sizeClass}">
       <div class="modal-header">
-        <h3 class="modal-title">${escapeHTML(title)}</h3>
+        <div class="modal-header-text">
+          <h3 class="modal-title">${escapeHTML(title)}</h3>
+          ${subtitle ? `<p class="modal-subtitle">${escapeHTML(subtitle)}</p>` : ''}
+        </div>
         <button data-close type="button" class="icon-btn" aria-label="Cerrar">
           <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
         </button>
