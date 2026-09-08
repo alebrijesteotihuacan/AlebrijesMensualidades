@@ -5,6 +5,7 @@ import { players, payments, categories } from './services/firestore.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderPlayers }   from './views/players.js';
 import { renderPayments }  from './views/payments.js';
+import { renderStats }     from './views/stats.js';
 
 // ============ STATE GLOBAL ============ //
 export const state = {
@@ -32,6 +33,7 @@ const ROUTES = {
   dashboard:  renderDashboard,
   players:    renderPlayers,
   payments:   renderPayments,
+  stats:      renderStats,
 };
 
 function getRoute() {
