@@ -2,9 +2,9 @@
 // Vista Dashboard minimalista: header + stats inline + categorías + morosos.
 
 import { state, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer } from '../app.js';
-import { classifyMora } from '../services/mora.js';
+import { classifyAdeudo } from '../services/adeudo.js';
 import { getAutoPendingPeriod, getAllAutoPending, classifyPlayersByStatus } from '../services/autoPending.js';
-import { formatMXN, monthYearLabel, daysMora } from '../utils/dates.js';
+import { formatMXN, monthYearLabel, daysOverdue } from '../utils/dates.js';
 
 export function renderDashboard(root) {
   const today = new Date();
@@ -64,7 +64,7 @@ export function renderDashboard(root) {
                 <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">Adeudos</p>
               </div>
               <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.totalAdeudo)}</p>
-              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.morosos} jugador${stats.morosos === 1 ? '' : 'es'} en mora</p>
+              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.morosos} jugador${stats.morosos === 1 ? '' : 'es'} con adeudo</p>
             </div>
           </div>
 
@@ -420,9 +420,9 @@ function computeStats(current) {
     ? Math.round((collectedThisPeriod / expectedThisPeriod) * 100)
     : 0;
 
-  // Adeudos: suma de mensualidad de jugadores con MORA ACTIVA (independiente de si hay pago registrado)
+  // Adeudos: suma de mensualidad de jugadores con ADEUDO ACTIVO (independiente de si hay pago registrado)
   const totalAdeudo = players
-    .filter((p) => classifyMora(p) !== 'recordatorio')
+    .filter((p) => classifyAdeudo(p) !== 'recordatorio')
     .reduce((s, p) => s + amountForPlayer(p), 0);
 
   // Histórico

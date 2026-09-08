@@ -1,5 +1,5 @@
 // utils/dates.js
-// Helpers de fecha: mensual, días de mora, formateo.
+// Helpers de fecha: mensual, días de adeudo, formateo.
 // Los jugadores pagan el día 1 o 15 de cada mes (mensualidad).
 
 // --- DEPRECATED: quincena ---
@@ -24,19 +24,19 @@ export function quincenaRange(year, quincena) {
 }
 
 /**
- * Calcula los días de mora de un jugador a partir de su paymentDay (1-31) y la fecha.
+ * Calcula los días de adeudo de un jugador a partir de su paymentDay (1-31) y la fecha.
  * Regla:
- *  - Si el día actual >= paymentDay del mes actual → mora = (hoy - paymentDay).
- *  - Si el día actual < paymentDay del mes actual → mora = (días del mes anterior - paymentDay) + hoy.
- *  - Si el jugador está exento (exempt: true) → mora = 0.
+ *  - Si el día actual >= paymentDay del mes actual → adeudo = (hoy - paymentDay).
+ *  - Si el día actual < paymentDay del mes actual → adeudo = (días del mes anterior - paymentDay) + hoy.
+ *  - Si el jugador está exento (exempt: true) → adeudo = 0.
  *
  * Sin días de gracia.
  *
  * @param {{paymentDay:number, exempt?:boolean}} player
  * @param {Date} today
- * @returns {number} días de mora (>= 0)
+ * @returns {number} días de adeudo (>= 0)
  */
-export function daysMora(player, today = new Date()) {
+export function daysOverdue(player, today = new Date()) {
   if (!player || !player.paymentDay) return 0;
   if (player.exempt) return 0;
   const pd = Number(player.paymentDay);
@@ -59,9 +59,9 @@ export function daysMora(player, today = new Date()) {
   return Math.max(0, Math.floor(diffMs / 86_400_000));
 }
 
-/** Devuelve true si el jugador está en mora (>0). */
-export function isMora(player, today = new Date()) {
-  return daysMora(player, today) > 0;
+/** Devuelve true si el jugador tiene adeudo activo (>0). */
+export function isOverdue(player, today = new Date()) {
+  return daysOverdue(player, today) > 0;
 }
 
 /** Devuelve la quincena (1|2) derivada del día de pago. */

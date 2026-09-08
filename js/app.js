@@ -326,10 +326,10 @@ export const ICON = {
 // ============ DROPDOWN DE MENSAJES ============ //
 // Catalogo con su icono y tono (reusado por tarjeta y tabla).
 export const MSG_LEVELS = [
-  { key: 'recordatorio', label: 'Recordatorio', sub: 'Sin atraso - dia limite', tone: 'sky',     icon: 'check' },
-  { key: 'mora1',        label: 'Mora 1 dia',    sub: 'Atraso de 1-2 dias',     tone: 'amber',   icon: 'clock' },
-  { key: 'mora3',        label: 'Mora 3 dias',   sub: 'Atraso de 3-4 dias',     tone: 'orange',  icon: 'alert' },
-  { key: 'mora5',        label: 'No podra entrenar', sub: 'Atraso de 5+ dias',  tone: 'red',     icon: 'ban' },
+  { key: 'recordatorio', label: 'Recordatorio', sub: 'Sin atraso - día límite', tone: 'sky',     icon: 'check' },
+  { key: 'adeudo1',     label: 'Adeudo 1 día',  sub: 'Atraso de 1-2 días',     tone: 'amber',   icon: 'clock' },
+  { key: 'adeudo3',     label: 'Adeudo 3 días', sub: 'Atraso de 3-4 días',     tone: 'orange',  icon: 'alert' },
+  { key: 'adeudo5',     label: 'No podrá entrenar', sub: 'Atraso de 5+ días',  tone: 'red',     icon: 'ban' },
 ];
 
 const TONE_CLASS = {
@@ -406,7 +406,7 @@ export function openMessageMenu(anchor, player, payment = {}) {
         let effectivePlayer = player;
         const real = renderMessage(player, fakePayment, today);
         if (real.level !== level) {
-          const offset = level === 'mora1' ? 1 : level === 'mora3' ? 3 : level === 'mora5' ? 5 : 0;
+          const offset = level === 'adeudo1' ? 1 : level === 'adeudo3' ? 3 : level === 'adeudo5' ? 5 : 0;
           effectivePlayer = { ...player, paymentDay: player.paymentDay - offset };
         }
         const { text } = renderMessage(effectivePlayer, fakePayment, today);

@@ -4,7 +4,7 @@
 
 import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, amountForPlayer } from '../app.js';
 import { payments } from '../services/firestore.js';
-import { classifyMora, moraLabel } from '../services/mora.js';
+import { classifyAdeudo, adeudoLabel } from '../services/adeudo.js';
 import { renderMessage, copyToClipboard } from '../services/messages.js';
 import { formatMXN, formatDate, monthName } from '../utils/dates.js';
 import { toCSV, toPDF } from '../services/export.js';
@@ -154,11 +154,11 @@ function rowHTML(p) {
   const playerName = player?.name || '—';
   const playerCat  = player?.category || '—';
   const isPending  = p.status === 'pending';
-  const level      = isPending && player ? classifyMora(player) : null;
+  const level      = isPending && player ? classifyAdeudo(player) : null;
   const statusDot  = isPending
-    ? (level === 'mora5' || level === 'mora3' ? 'dot-danger' : 'dot-warning')
+    ? (level === 'adeudo5' || level === 'adeudo3' ? 'dot-danger' : 'dot-warning')
     : 'dot-success';
-  const statusText = isPending ? moraLabel(level || 'recordatorio') : 'Pagado';
+  const statusText = isPending ? adeudoLabel(level || 'recordatorio') : 'Pagado';
 
   return `
     <tr>
@@ -232,7 +232,7 @@ async function onCopy(paymentId) {
   const { text, level } = renderMessage(player, p);
   try {
     await copyToClipboard(text);
-    toast(`Mensaje copiado (${moraLabel(level)})`, 'success', 3500);
+    toast(`Mensaje copiado (${adeudoLabel(level)})`, 'success', 3500);
   } catch (e) {
     console.error(e);
     toast('No se pudo copiar', 'error');

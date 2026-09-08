@@ -3,8 +3,8 @@
 
 import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
 import { players, payments } from '../services/firestore.js';
-import { classifyMora, moraLabel } from '../services/mora.js';
-import { daysMora, formatMXN, formatDate, monthName } from '../utils/dates.js';
+import { classifyAdeudo, adeudoLabel } from '../services/adeudo.js';
+import { daysOverdue, formatMXN, formatDate, monthName } from '../utils/dates.js';
 import { openPaymentForm } from './payments.js';
 
 let _filter = { category: '', status: '', dayRange: '', search: '' };
@@ -50,7 +50,7 @@ export function renderPlayers(root) {
               <option value="">Todos</option>
               <option value="paid">Al día</option>
               <option value="pending">Pendientes</option>
-              <option value="mora">En mora</option>
+              <option value="adeudo">Con adeudo</option>
             </select>
           </div>
           <div class="sm:col-span-2 flex items-end">
@@ -99,12 +99,12 @@ export function renderPlayers(root) {
     const total   = playersWithStatus.length;
     const paid    = playersWithStatus.filter((p) => p.status === 'paid').length;
     const pending = playersWithStatus.filter((p) => p.status === 'pending').length;
-    const mora    = playersWithStatus.filter((p) => p.status === 'mora').length;
+    const adeudo  = playersWithStatus.filter((p) => p.status === 'adeudo').length;
     summary.innerHTML = `
       <span class="status"><span class="status-dot dot-neutral"></span><span>${total} totales</span></span>
       <span class="status"><span class="status-dot dot-success"></span><span>${paid} al día</span></span>
       ${pending > 0 ? `<span class="status"><span class="status-dot dot-warning"></span><span>${pending} pendientes</span></span>` : ''}
-      ${mora > 0 ? `<span class="status"><span class="status-dot dot-danger"></span><span>${mora} en mora</span></span>` : ''}
+      ${adeudo > 0 ? `<span class="status"><span class="status-dot dot-danger"></span><span>${adeudo} con adeudo</span></span>` : ''}
     `;
 
     if (filtered.length === 0) {
@@ -142,7 +142,7 @@ export function renderPlayers(root) {
 }
 
 function playerWithCurrentStatus(p) {
-  if (p.exempt) return { ...p, status: 'paid', payment: null, diasMora: 0 };
+  if (p.exempt) return { ...p, status: 'paid', payment: null, diasAdeudo: 0 };
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth() + 1;
@@ -151,15 +151,15 @@ function playerWithCurrentStatus(p) {
     Number(pay.year) === year &&
     Number(pay.month) === month
   );
-  const dias = daysMora(p);
+  const dias = daysOverdue(p);
   let status = 'paid';
   if (payment?.status === 'pending') {
-    status = dias > 0 ? 'mora' : 'pending';
+    status = dias > 0 ? 'adeudo' : 'pending';
   } else if (!payment) {
-    if (dias > 0) status = 'mora';
+    if (dias > 0) status = 'adeudo';
     else status = 'pending';
   }
-  return { ...p, status, payment: payment || null, diasMora: dias };
+  return { ...p, status, payment: payment || null, diasAdeudo: dias };
 }
 
 function applyFilter(list, { category, status, dayRange, search }) {
@@ -219,11 +219,11 @@ function statusInline(p) {
   if (p.exempt) return `<span class="status"><span class="status-dot dot-neutral"></span><span>Becado</span></span>`;
   if (p.status === 'paid')    return `<span class="status"><span class="status-dot dot-success"></span><span>Al día</span></span>`;
   if (p.status === 'pending') return `<span class="status"><span class="status-dot dot-warning"></span><span>Pendiente hoy</span></span>`;
-  // Mora: siempre usa daysMora() para no depender de que el caller
-  // haya enriquecido el objeto con diasMora (caso del drawer).
-  const dias = daysMora(p);
+  // Adeudo: siempre usa daysOverdue() para no depender de que el caller
+  // haya enriquecido el objeto con diasAdeudo (caso del drawer).
+  const dias = daysOverdue(p);
   const dot = dias >= 5 ? 'dot-danger' : 'dot-warning';
-  const label = escapeHTML(moraLabel(classifyMora(p, new Date())));
+  const label = escapeHTML(adeudoLabel(classifyAdeudo(p, new Date())));
   return `<span class="status"><span class="status-dot ${dot}"></span><span>${label} · ${dias}d</span></span>`;
 }
 
@@ -256,8 +256,8 @@ function openPlayerDrawer(id) {
   if (!p) return;
   const amount = formatMXN(amountForPlayer(p));
   const cat = findCategoryByName(p.category);
-  const dias = daysMora(p);
-  const isOverdue = p.status === 'mora';
+  const dias = daysOverdue(p);
+  const isOverdue = p.status === 'adeudo';
 
   const body = `
     <div class="flex items-center gap-3 mb-4">

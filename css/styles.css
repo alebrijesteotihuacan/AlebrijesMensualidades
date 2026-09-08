@@ -341,8 +341,110 @@
 .progress-lg > .bar-pending { background: #E4E4E7; }
 
 /* ============================================
-   COMBOBOX (selector de jugador en form de pago)
+   ADEUDOS — distinción visual Vencidos vs Próximos
    ============================================ */
+.adeudo-group {
+  margin-bottom: 1rem;
+}
+.adeudo-group:last-child { margin-bottom: 0; }
+
+.adeudo-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.adeudo-group-label.overdue   { color: #991B1B; }
+.adeudo-group-label.upcoming  { color: #52525B; }
+
+.adeudo-group-label .count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.adeudo-group-label.overdue  .count-pill { background: #FEE2E2; color: #991B1B; }
+.adeudo-group-label.upcoming .count-pill { background: #E4E4E7; color: #52525B; }
+
+.adeudo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+}
+.adeudo-item:last-child { margin-bottom: 0; }
+
+.adeudo-item.overdue {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+.adeudo-item.upcoming {
+  background: #FAFAFA;
+  border-color: #F4F4F5;
+}
+
+.adeudo-item .ai-name {
+  font-size: 13px;
+  color: #18181B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adeudo-item.overdue .ai-name { font-weight: 600; }
+.adeudo-item.upcoming .ai-name { font-weight: 500; }
+
+.adeudo-item .ai-meta {
+  font-size: 11px;
+  color: #71717A;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adeudo-badge {
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+.adeudo-badge.overdue {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+.adeudo-badge.upcoming {
+  background: #E4E4E7;
+  color: #52525B;
+}
+.adeudo-badge.urgent {
+  background: #DC2626;
+  color: #FFFFFF;
+  animation: adeudo-pulse 2s ease-in-out infinite;
+}
+@keyframes adeudo-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5); }
+  50%      { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); }
+}
+
+
 .combobox { position: relative; }
 .combobox-dropdown {
   position: absolute;

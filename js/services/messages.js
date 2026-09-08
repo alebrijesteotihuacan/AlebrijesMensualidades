@@ -1,10 +1,10 @@
 // services/messages.js
-// Plantillas de mensajes (5 niveles: recordatorio_proximo, recordatorio, mora1, mora3, mora5)
+// Plantillas de mensajes (5 niveles: recordatorio_proximo, recordatorio, adeudo1, adeudo3, adeudo5)
 // + generación de imagen CLABE.
 // Plantillas proporcionadas por el Profesor Haziel Macias.
 
-import { classifyMora } from './mora.js';
-import { formatMXN }    from '../utils/dates.js';
+import { classifyAdeudo } from './adeudo.js';
+import { formatMXN }      from '../utils/dates.js';
 
 /** Datos bancarios del club (constantes del mensaje). */
 export const BANK_INFO = Object.freeze({
@@ -31,13 +31,13 @@ function fill(template, vars) {
  * Niveles:
  *   - 'recordatorio_proximo' → 1-3 días ANTES del día de pago
  *   - 'recordatorio'         → día de pago (sin atraso)
- *   - 'mora1'                → 1-2 días de atraso
- *   - 'mora3'                → 3-4 días de atraso
- *   - 'mora5'                → 5+ días de atraso
+ *   - 'adeudo1'              → 1-2 días de atraso
+ *   - 'adeudo3'              → 3-4 días de atraso
+ *   - 'adeudo5'              → 5+ días de atraso
  */
 export function classifyMessageLevel(player, today = new Date()) {
   const pd = Number(player?.paymentDay);
-  if (!pd || pd < 1 || pd > 31) return classifyMora(player, today);
+  if (!pd || pd < 1 || pd > 31) return classifyAdeudo(player, today);
 
   const day = today.getDate();
   // Aún no llega el día de pago
@@ -46,8 +46,8 @@ export function classifyMessageLevel(player, today = new Date()) {
     if (daysUntil <= 3) return 'recordatorio_proximo';
     return 'recordatorio';
   }
-  // Día de pago o después: usa clasificador de mora
-  return classifyMora(player, today);
+  // Día de pago o después: usa clasificador de adeudo
+  return classifyAdeudo(player, today);
 }
 
 /** Devuelve el día del mes en que le toca pagar este mes al jugador. */
@@ -104,7 +104,7 @@ Concepto de Pago: {concepto}
 
 Muchas gracias por tu atención y tu puntualidad de siempre. ¡Que sigas teniendo una excelente tarde y mucho éxito! 🌟✨`;
 
-const TPL_MORA1 = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
+const TPL_ADEUDO1 = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
 
 Te escribo por este medio para comunicarme contigo respecto al pago de tu mensualidad:
 
@@ -122,7 +122,7 @@ Concepto de Pago: {concepto}
 
 Muchas gracias por tu atención y comprensión. ¡Que sigas teniendo una excelente tarde! 🌟✨`;
 
-const TPL_MORA3 = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
+const TPL_ADEUDO3 = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
 
 Te escribo por este medio para comunicarme contigo respecto al pago de tu mensualidad:
 
@@ -142,7 +142,7 @@ Concepto de Pago: {concepto}
 
 Muchas gracias por tu atención y comprensión. ¡Que sigas teniendo una excelente tarde! 🌟✨`;
 
-const TPL_MORA5 = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
+const TPL_ADEUDO5 = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
 
 Te escribo por este medio para comunicarme contigo respecto al pago de tu mensualidad:
 
@@ -196,9 +196,9 @@ export function renderMessage(player, payment, today = new Date()) {
   switch (level) {
     case 'recordatorio_proximo': text = fill(TPL_RECORDATORIO_PROXIMO, vars); break;
     case 'recordatorio':         text = fill(TPL_RECORDATORIO, vars); break;
-    case 'mora1':                text = fill(TPL_MORA1, vars); break;
-    case 'mora3':                text = fill(TPL_MORA3, vars); break;
-    case 'mora5':                text = fill(TPL_MORA5, vars); break;
+    case 'adeudo1':              text = fill(TPL_ADEUDO1, vars); break;
+    case 'adeudo3':              text = fill(TPL_ADEUDO3, vars); break;
+    case 'adeudo5':              text = fill(TPL_ADEUDO5, vars); break;
     default:                     text = '';
   }
 
