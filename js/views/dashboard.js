@@ -362,8 +362,8 @@ function computeStats(current) {
     .slice(0, 5);
 
   // ===== Economía del club =====
-  // Recaudado del período: solo pagos PAGADOS de la quincena actual
-  const collectedThisPeriod = currentPeriod
+  // Recaudado del período: solo pagos PAGADOS del mes actual
+  const collectedThisPeriod = currentMonthPayments
     .filter((p) => p.status === 'paid')
     .reduce((s, p) => s + Number(p.amount || 0), 0);
 
