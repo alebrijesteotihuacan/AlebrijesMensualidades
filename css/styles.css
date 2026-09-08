@@ -494,6 +494,95 @@
 }
 
 /* ============================================
+   DRAWER (panel lateral derecho)
+   ============================================ */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(9, 9, 11, 0);
+  transition: background-color 0.15s ease-out;
+  display: flex;
+  justify-content: flex-end;
+}
+.drawer-backdrop.is-open {
+  background: rgba(9, 9, 11, 0.40);
+}
+
+.drawer-panel {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  background: white;
+  border-left: 1px solid #E4E4E7;
+  box-shadow: -10px 0 30px rgba(9,9,11,0.15);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+  overscroll-behavior: contain;
+}
+@media (min-width: 640px) {
+  .drawer-panel { max-width: 26rem; }
+}
+.drawer-panel.is-open { transform: translateX(0); }
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #E4E4E7;
+  flex-shrink: 0;
+}
+.drawer-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #09090B;
+  text-wrap: balance;
+}
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem;
+}
+.drawer-footer {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #E4E4E7;
+  background: #FAFAFA;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Detail rows dentro del drawer */
+.detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #F4F4F5;
+}
+.detail-row:last-child { border-bottom: 0; }
+.detail-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #71717A;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.detail-value {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #09090B;
+  text-align: right;
+}
+
+/* ============================================
    MESSAGE DROPDOWN
    ============================================ */
 .msg-menu {

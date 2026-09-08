@@ -1,7 +1,7 @@
 // js/views/players.js
 // Vista Jugadores: cards minimalistas, planas, monocromas.
 
-import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
+import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
 import { players, payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
 import { daysMora, formatMXN, getCurrentQuincena } from '../utils/dates.js';
@@ -111,20 +111,15 @@ export function renderPlayers(root) {
       </div>
     `;
 
-    grid.querySelectorAll('[data-edit]').forEach((b) =>
-      b.addEventListener('click', (e) => { e.stopPropagation(); openPlayerForm(b.dataset.edit); })
-    );
-    grid.querySelectorAll('[data-del]').forEach((b) =>
-      b.addEventListener('click', (e) => { e.stopPropagation(); onDelete(b.dataset.del); })
-    );
-    grid.querySelectorAll('[data-msg]').forEach((b) =>
-      b.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const p = state.players.find((x) => x.id === b.dataset.msg);
-        if (!p) return;
-        openMessageMenu(b, p, { amount: amountForPlayer(p) });
-      })
-    );
+    grid.querySelectorAll('[data-player]').forEach((el) => {
+      el.addEventListener('click', () => openPlayerDrawer(el.dataset.player));
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openPlayerDrawer(el.dataset.player);
+        }
+      });
+    });
   }
 
   paint();
@@ -165,7 +160,7 @@ function applyFilter(list, { category, status, search }) {
 function playerCard(p) {
   const amount = formatMXN(amountForPlayer(p));
   return `
-    <article class="player-card" data-status="${p.status}">
+    <article class="player-card" data-status="${p.status}" data-player="${p.id}" role="button" tabindex="0" aria-label="Ver información de ${escapeHTML(p.name)}">
       <!-- Header -->
       <div class="flex items-start gap-3">
         <div class="avatar size-lg" style="${avatarGradient(p.name)}" aria-hidden="true">${escapeHTML(initialsOf(p.name))}</div>
@@ -174,10 +169,7 @@ function playerCard(p) {
           <p class="player-meta truncate">${escapeHTML(p.category || 'Sin categoría')}</p>
           <div class="mt-1.5">${statusInline(p)}</div>
         </div>
-        <div class="flex gap-0.5">
-          <button data-edit="${p.id}" type="button" class="icon-btn" aria-label="Editar a ${escapeHTML(p.name)}">${ICON.edit}</button>
-          <button data-del="${p.id}" type="button" class="icon-btn icon-btn-danger" aria-label="Eliminar a ${escapeHTML(p.name)}">${ICON.trash}</button>
-        </div>
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-zinc-400 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
       </div>
 
       <!-- Info row -->
@@ -194,18 +186,7 @@ function playerCard(p) {
         </div>
       </div>
 
-      ${p.phone ? `
-        <a href="${toWhatsAppUrl(p.phone)}" target="_blank" rel="noopener noreferrer" aria-label="Enviar mensaje de WhatsApp a ${escapeHTML(p.name)}" class="flex items-center justify-between border-t border-zinc-100 pt-3 hover:text-zinc-950">
-          <span class="player-phone">${ICON.whatsapp}<span>${escapeHTML(p.phone)}</span></span>
-          <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Mensaje</span>
-        </a>` : ''}
-
-      <!-- Action -->
-      <button data-msg="${p.id}" type="button" class="btn btn-secondary w-full justify-center" ${p.status === 'paid' && !p.exempt ? 'disabled' : ''}>
-        ${ICON.chat}<span>Copiar mensaje de pago</span>
-      </button>
-
-      ${p.notes ? `<p class="text-xs text-zinc-600 bg-zinc-50 border border-zinc-100 rounded-md px-2.5 py-2 leading-relaxed">${escapeHTML(p.notes)}</p>` : ''}
+      ${p.notes ? `<p class="text-xs text-zinc-600 bg-zinc-50 border border-zinc-100 rounded-md px-2.5 py-2 leading-relaxed line-clamp-2">${escapeHTML(p.notes)}</p>` : ''}
     </article>
   `;
 }
@@ -221,6 +202,93 @@ function statusInline(p) {
 
 function initialsOf(name) {
   return String(name || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
+}
+
+// === DRAWER DE JUGADOR ===
+
+function openPlayerDrawer(id) {
+  const p = state.players.find((x) => x.id === id);
+  if (!p) return;
+  const amount = formatMXN(amountForPlayer(p));
+  const cat = findCategoryByName(p.category);
+  const dias = daysMora(p);
+  const isOverdue = p.status === 'mora';
+
+  const body = `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="avatar size-lg" style="${avatarGradient(p.name)}" aria-hidden="true">${escapeHTML(initialsOf(p.name))}</div>
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold text-base truncate">${escapeHTML(p.name)}</p>
+        <p class="text-xs text-zinc-500 truncate">${escapeHTML(p.category || 'Sin categoría')}</p>
+      </div>
+    </div>
+
+    <div>${statusInline(p)}</div>
+
+    <div class="mt-5">
+      <div class="detail-row">
+        <span class="detail-label">Mensualidad</span>
+        <span class="detail-value tabular-nums">${amount}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Día de pago</span>
+        <span class="detail-value tabular-nums">${p.exempt ? 'Becado' : p.paymentDay}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Categoría</span>
+        <span class="detail-value">${escapeHTML(p.category || '—')}</span>
+      </div>
+      ${p.phone ? `
+        <div class="detail-row">
+          <span class="detail-label">Teléfono</span>
+          <a href="${toWhatsAppUrl(p.phone)}" target="_blank" rel="noopener noreferrer" class="detail-value font-mono text-zinc-700 hover:text-zinc-950 inline-flex items-center gap-1.5">
+            ${ICON.whatsapp}<span>${escapeHTML(p.phone)}</span>
+          </a>
+        </div>` : ''}
+      ${isOverdue && dias > 0 ? `
+        <div class="detail-row">
+          <span class="detail-label">Atraso</span>
+          <span class="detail-value text-danger tabular-nums">${dias} ${dias === 1 ? 'día' : 'días'}</span>
+        </div>` : ''}
+    </div>
+
+    ${p.notes ? `
+      <div class="mt-5">
+        <p class="text-[10px] uppercase tracking-wider font-medium text-zinc-500 mb-1.5">Notas</p>
+        <p class="text-sm text-zinc-700 bg-zinc-50 border border-zinc-100 rounded-md px-3 py-2 leading-relaxed">${escapeHTML(p.notes)}</p>
+      </div>` : ''}
+  `;
+
+  const footer = `
+    ${!p.exempt ? `
+      <button data-msg type="button" class="btn btn-primary w-full justify-center" ${p.status === 'paid' ? 'disabled' : ''}>
+        ${ICON.chat}<span>Copiar mensaje de pago</span>
+      </button>` : ''}
+    <div class="grid grid-cols-2 gap-2">
+      <button data-edit type="button" class="btn btn-secondary w-full justify-center">
+        ${ICON.edit}<span>Editar</span>
+      </button>
+      <button data-del type="button" class="btn btn-ghost w-full justify-center text-red-600 hover:bg-red-50">
+        ${ICON.trash}<span>Eliminar</span>
+      </button>
+    </div>
+  `;
+
+  const drawer = openDrawer({ title: 'Detalles del jugador', body, footer });
+  if (!drawer.panel) return;
+
+  drawer.panel.querySelector('[data-edit]')?.addEventListener('click', () => {
+    drawer.close();
+    openPlayerForm(p.id);
+  });
+  drawer.panel.querySelector('[data-del]')?.addEventListener('click', async () => {
+    drawer.close();
+    await onDelete(p.id);
+  });
+  drawer.panel.querySelector('[data-msg]')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    openMessageMenu(btn, p, { amount: amountForPlayer(p) });
+  });
 }
 
 // === FORMULARIO CREAR/EDITAR ===

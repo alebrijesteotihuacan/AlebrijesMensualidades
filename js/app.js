@@ -193,6 +193,74 @@ export function confirmModal({ title = '¿Confirmar?', message = '', confirmText
   });
 }
 
+// ============ DRAWER (panel lateral) ============ //
+/**
+ * Abre un drawer lateral derecho.
+ * @param {{ title?: string, body: string, footer?: string }} opts
+ * @returns {{ close: ()=>void, panel: HTMLElement }}
+ */
+export function openDrawer({ title, body, footer }) {
+  const root = document.getElementById('modal-root');
+  if (!root) return { close() {}, panel: null };
+  root.innerHTML = '';
+  const previouslyFocused = document.activeElement;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'drawer-backdrop';
+  wrap.setAttribute('role', 'dialog');
+  wrap.setAttribute('aria-modal', 'true');
+  if (title) wrap.setAttribute('aria-label', title);
+
+  wrap.innerHTML = `
+    <div class="drawer-panel">
+      ${title ? `
+        <div class="drawer-header">
+          <h2 class="drawer-title">${escapeHTML(title)}</h2>
+          <button data-close type="button" class="icon-btn" aria-label="Cerrar">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </button>
+        </div>
+      ` : ''}
+      <div class="drawer-body">${body}</div>
+      ${footer ? `<div class="drawer-footer">${footer}</div>` : ''}
+    </div>
+  `;
+
+  root.appendChild(wrap);
+
+  function close() {
+    root.innerHTML = '';
+    document.removeEventListener('keydown', onKey);
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      previouslyFocused.focus();
+    }
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'Tab') {
+      const focusables = wrap.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
+  document.addEventListener('keydown', onKey);
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+  wrap.querySelector('[data-close]')?.addEventListener('click', close);
+
+  const panel = wrap.querySelector('.drawer-panel');
+
+  // Animacion de entrada
+  requestAnimationFrame(() => {
+    wrap.classList.add('is-open');
+    panel.classList.add('is-open');
+  });
+
+  return { close, panel };
+}
+
 // ============ HELPERS ============ //
 export function escapeHTML(s = '') {
   return String(s)
