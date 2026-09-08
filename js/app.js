@@ -443,15 +443,43 @@ const CATEGORY_PALETTE = [
 
 // Mapa cacheado: nombre de categoría → índice de color (asignación estable).
 const _categoryColorIndex = new Map();
-let _nextColorIdx = 0;
 
+/**
+ * Devuelve el índice de color para una categoría.
+ *
+ * Asignación por ORDEN ALFABÉTICO (locale 'es') sobre todas las categorías
+ * conocidas (cache + state.categories). Esto garantiza colores únicos y
+ * determinísticos sin depender del orden de carga de Firebase.
+ *
+ * Si el color calculado ya está usado por otra categoría, busca el siguiente
+ * libre en la paleta para evitar colisiones.
+ */
 function getCategoryColorIdx(category) {
   if (!category) return 4; // verde por defecto para sin categoría
   if (_categoryColorIndex.has(category)) return _categoryColorIndex.get(category);
-  // Hash del nombre para asignación determinística pero con buena dispersión
-  let h = 0;
-  for (let i = 0; i < category.length; i++) h = (h * 31 + category.charCodeAt(i)) >>> 0;
-  const idx = (h + _nextColorIdx) % CATEGORY_PALETTE.length;
+
+  const known = new Set([
+    ..._categoryColorIndex.keys(),
+    ...(state.categories?.map((c) => c.name) || []),
+    category,
+  ]);
+  const sorted = [...known].sort((a, b) =>
+    a.localeCompare(b, 'es', { sensitivity: 'base' })
+  );
+  let idx = sorted.indexOf(category) % CATEGORY_PALETTE.length;
+
+  // Colisión: buscar el siguiente color libre en la paleta
+  const usedIdxs = new Set(_categoryColorIndex.values());
+  if (usedIdxs.has(idx)) {
+    for (let i = 1; i < CATEGORY_PALETTE.length; i++) {
+      const candidate = (idx + i) % CATEGORY_PALETTE.length;
+      if (!usedIdxs.has(candidate)) {
+        idx = candidate;
+        break;
+      }
+    }
+  }
+
   _categoryColorIndex.set(category, idx);
   return idx;
 }

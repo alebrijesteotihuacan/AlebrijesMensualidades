@@ -115,7 +115,7 @@ export function renderDashboard(root) {
                   <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Recaudado</p>
                 </div>
                 <p class="text-lg font-semibold tabular-nums text-emerald-700">${formatMXN(stats.totalCollected)}</p>
-                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${stats.historicalPct}% del total</p>
+                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${stats.historicalPct}% del esperado</p>
               </div>
               <div class="px-2 last:pr-1">
                 <div class="flex items-center gap-1.5 mb-1.5">
@@ -123,7 +123,7 @@ export function renderDashboard(root) {
                   <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Pendiente</p>
                 </div>
                 <p class="text-lg font-semibold tabular-nums text-amber-700">${formatMXN(stats.totalPending)}</p>
-                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${100 - stats.historicalPct}% del total</p>
+                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${100 - stats.historicalPct}% del esperado</p>
               </div>
             </div>
           </div>
@@ -373,12 +373,14 @@ function computeStats(current) {
 
   // Histórico
   const totalCollected = payments.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
-  const totalPending   = payments.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount || 0), 0);
   const expectedMonthly = players.filter((p) => !p.exempt).reduce((s, p) => s + amountForPlayer(p), 0);
+  // Pendiente = Esperado − Recaudado (lo que falta por cobrar del mes actual)
+  const totalPending = Math.max(0, expectedMonthly - totalCollected);
   const paidPaymentsCount    = payments.filter((p) => p.status === 'paid').length;
   const pendingPaymentsCount = payments.filter((p) => p.status === 'pending').length;
-  const historicalPct = (totalCollected + totalPending) > 0
-    ? Math.round((totalCollected / (totalCollected + totalPending)) * 100)
+  // % cobrado del esperado mensual
+  const historicalPct = expectedMonthly > 0
+    ? Math.round((totalCollected / expectedMonthly) * 100)
     : 0;
 
   return {

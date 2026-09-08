@@ -328,15 +328,20 @@ function openPaymentForm(id) {
   // Botón "Hoy": pone el día actual (del mes seleccionado)
   m.panel.querySelector('[data-today]').addEventListener('click', () => {
     const today = new Date();
-    // Si el mes seleccionado es el actual, usa día de hoy.
-    // Si no, pone el último día del mes seleccionado para que sea válido.
     const selMonth = Number(monthSel.value);
-    if (selMonth === today.getMonth() + 1) {
-      dayIn.value = today.getDate();
+    const todayMonth = today.getMonth() + 1;
+    let day;
+    if (selMonth === todayMonth) {
+      day = today.getDate();
     } else {
-      const lastDay = new Date(today.getFullYear(), selMonth, 0).getDate();
-      dayIn.value = lastDay;
+      // Mes distinto al actual: poner el último día válido del mes seleccionado
+      day = new Date(today.getFullYear(), selMonth, 0).getDate();
     }
+    dayIn.value = String(day);
+    dayIn.focus();
+    dayIn.select();
+    // Disparar evento 'input' para actualizar el hint
+    dayIn.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
   // Hint dinámico según haya día o no
