@@ -45,8 +45,8 @@ export function renderDashboard(root) {
             <span class="text-xs text-zinc-500 tabular-nums">${escapeHTML(quincenaLabel(current.year, current.quincena))} · ${escapeHTML(monthYearLabel(current.year, current.month))}</span>
           </div>
 
-          <!-- 3 stat blocks: Recaudado / Por cobrar / Adeudos -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100 -mx-2">
+          <!-- 2 stat blocks: Recaudado / Adeudos -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100 -mx-2">
             <div class="px-2 py-3 sm:py-1 first:pt-0 sm:first:pt-1">
               <div class="flex items-center gap-1.5">
                 <span class="status-dot dot-success"></span>
@@ -54,15 +54,6 @@ export function renderDashboard(root) {
               </div>
               <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.collectedThisPeriod)}</p>
               <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.collectedPct}% del esperado · ${stats.currentPaid} jugador${stats.currentPaid === 1 ? '' : 'es'}</p>
-            </div>
-
-            <div class="px-2 py-3 sm:py-1">
-              <div class="flex items-center gap-1.5">
-                <span class="status-dot dot-warning"></span>
-                <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">Por cobrar</p>
-              </div>
-              <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.pendingThisPeriod)}</p>
-              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.currentPending} jugador${stats.currentPending === 1 ? '' : 'es'} pendiente${stats.currentPending === 1 ? '' : 's'}</p>
             </div>
 
             <div class="px-2 py-3 last:pb-0 sm:last:pb-1">
@@ -334,11 +325,6 @@ function computeStats(current) {
     .filter((p) => p.status === 'paid')
     .reduce((s, p) => s + Number(p.amount || 0), 0);
 
-  // Por cobrar del período: solo pagos PENDIENTES de la quincena actual
-  const pendingThisPeriod = currentPeriod
-    .filter((p) => p.status === 'pending')
-    .reduce((s, p) => s + Number(p.amount || 0), 0);
-
   // Esperado del período: suma de mensualidad de TODOS los jugadores activos (no exentos)
   const expectedThisPeriod = players
     .filter((p) => !p.exempt)
@@ -367,7 +353,6 @@ function computeStats(current) {
     morosos,
     morososList,
     collectedThisPeriod,
-    pendingThisPeriod,
     expectedThisPeriod,
     collectedPct,
     totalAdeudo,
