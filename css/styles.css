@@ -336,6 +336,10 @@
 .progress > .bar-paid    { background: #09090B; height: 100%; }
 .progress > .bar-pending { background: #D4D4D8; height: 100%; }
 
+.progress-lg { height: 8px; }
+.progress-lg > .bar-paid    { background: #09090B; }
+.progress-lg > .bar-pending { background: #E4E4E7; }
+
 /* ============================================
    MOROSO ROW (dashboard, estilo tabla simple)
    ============================================ */

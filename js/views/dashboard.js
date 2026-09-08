@@ -37,23 +37,74 @@ export function renderDashboard(root) {
       <!-- COBRANZA -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div class="card card-pad">
-          <p class="section-eyebrow">Economía del club</p>
-          <h2 class="text-base font-semibold mt-1 mb-4">Cobranza del período</h2>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 mb-5">
             <div>
-              <p class="text-xs text-zinc-500">Recaudado</p>
-              <p class="text-xl font-semibold tabular-nums mt-0.5">${formatMXN(stats.totalCollected)}</p>
+              <p class="section-eyebrow">Economía del club</p>
+              <h2 class="text-base font-semibold mt-1">Cobranza del período</h2>
             </div>
-            <div>
-              <p class="text-xs text-zinc-500">Por cobrar</p>
-              <p class="text-xl font-semibold tabular-nums mt-0.5">${formatMXN(stats.totalPending)}</p>
+            <span class="text-xs text-zinc-500 tabular-nums">${escapeHTML(quincenaLabel(current.year, current.quincena))} · ${escapeHTML(monthYearLabel(current.year, current.month))}</span>
+          </div>
+
+          <!-- 3 stat blocks: Recaudado / Por cobrar / Adeudos -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100 -mx-2">
+            <div class="px-2 py-3 sm:py-1 first:pt-0 sm:first:pt-1">
+              <div class="flex items-center gap-1.5">
+                <span class="status-dot dot-success"></span>
+                <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">Recaudado</p>
+              </div>
+              <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.collectedThisPeriod)}</p>
+              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.collectedPct}% del esperado · ${stats.currentPaid} jugador${stats.currentPaid === 1 ? '' : 'es'}</p>
+            </div>
+
+            <div class="px-2 py-3 sm:py-1">
+              <div class="flex items-center gap-1.5">
+                <span class="status-dot dot-warning"></span>
+                <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">Por cobrar</p>
+              </div>
+              <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.pendingThisPeriod)}</p>
+              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.currentPending} jugador${stats.currentPending === 1 ? '' : 'es'} pendiente${stats.currentPending === 1 ? '' : 's'}</p>
+            </div>
+
+            <div class="px-2 py-3 last:pb-0 sm:last:pb-1">
+              <div class="flex items-center gap-1.5">
+                <span class="status-dot dot-danger"></span>
+                <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">Adeudos</p>
+              </div>
+              <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.totalAdeudo)}</p>
+              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.morosos} jugador${stats.morosos === 1 ? '' : 'es'} en mora</p>
             </div>
           </div>
-          <div class="progress mt-4">
-            <div class="bar-paid" style="width:${Math.min(100, stats.economyPct)}%"></div>
-            <div class="bar-pending" style="width:${100 - Math.min(100, stats.economyPct)}%"></div>
+
+          <!-- Progreso de cobranza -->
+          <div class="mt-5">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-medium text-zinc-700">Progreso de cobranza</span>
+              <span class="text-xs text-zinc-500 tabular-nums">Esperado: ${formatMXN(stats.expectedThisPeriod)}</span>
+            </div>
+            <div class="progress progress-lg">
+              <div class="bar-paid" style="width:${Math.min(100, stats.collectedPct)}%"></div>
+              <div class="bar-pending" style="width:${Math.max(0, 100 - Math.min(100, stats.collectedPct))}%"></div>
+            </div>
           </div>
-          <p class="text-xs text-zinc-500 mt-2 tabular-nums">${stats.economyPct}% cobrado</p>
+
+          <!-- Resumen histórico -->
+          <div class="mt-5 pt-4 border-t border-zinc-100">
+            <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-3">Histórico acumulado</p>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <p class="text-xs text-zinc-500">Esperado / mes</p>
+                <p class="text-sm font-semibold tabular-nums mt-1">${formatMXN(stats.expectedMonthly)}</p>
+              </div>
+              <div>
+                <p class="text-xs text-zinc-500">Recaudado</p>
+                <p class="text-sm font-semibold tabular-nums mt-1">${formatMXN(stats.totalCollected)}</p>
+              </div>
+              <div>
+                <p class="text-xs text-zinc-500">Pendiente</p>
+                <p class="text-sm font-semibold tabular-nums mt-1">${formatMXN(stats.totalPending)}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="card card-pad">
@@ -277,11 +328,36 @@ function computeStats(current) {
     .slice(0, 5);
   const morosos = players.filter((p) => classifyMora(p) !== 'recordatorio').length;
 
+  // ===== Economía del club =====
+  // Recaudado del período: solo pagos PAGADOS de la quincena actual
+  const collectedThisPeriod = currentPeriod
+    .filter((p) => p.status === 'paid')
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  // Por cobrar del período: solo pagos PENDIENTES de la quincena actual
+  const pendingThisPeriod = currentPeriod
+    .filter((p) => p.status === 'pending')
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  // Esperado del período: suma de mensualidad de TODOS los jugadores activos (no exentos)
+  const expectedThisPeriod = players
+    .filter((p) => !p.exempt)
+    .reduce((s, p) => s + amountForPlayer(p), 0);
+
+  // % cobrado del esperado del período
+  const collectedPct = expectedThisPeriod > 0
+    ? Math.round((collectedThisPeriod / expectedThisPeriod) * 100)
+    : 0;
+
+  // Adeudos: suma de mensualidad de jugadores con MORA ACTIVA (independiente de si hay pago registrado)
+  const totalAdeudo = players
+    .filter((p) => classifyMora(p) !== 'recordatorio')
+    .reduce((s, p) => s + amountForPlayer(p), 0);
+
+  // Histórico
   const totalCollected = payments.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalPending   = payments.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount || 0), 0);
-  const economyPct = (totalCollected + totalPending) > 0
-    ? Math.round((totalCollected / (totalCollected + totalPending)) * 100)
-    : 0;
+  const expectedMonthly = players.filter((p) => !p.exempt).reduce((s, p) => s + amountForPlayer(p), 0);
 
   return {
     totalPlayers,
@@ -290,9 +366,14 @@ function computeStats(current) {
     currentPct,
     morosos,
     morososList,
+    collectedThisPeriod,
+    pendingThisPeriod,
+    expectedThisPeriod,
+    collectedPct,
+    totalAdeudo,
     totalCollected,
     totalPending,
-    economyPct,
+    expectedMonthly,
     byCategory,
   };
 }
