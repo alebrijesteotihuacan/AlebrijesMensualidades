@@ -6,7 +6,7 @@ import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient
 import { payments } from '../services/firestore.js';
 import { classifyAdeudo, adeudoLabel } from '../services/adeudo.js';
 import { renderMessage, copyToClipboard } from '../services/messages.js';
-import { formatMXN, formatDate, monthName } from '../utils/dates.js';
+import { formatMXN, formatDate, monthName, monthShort } from '../utils/dates.js';
 import { toCSV, toPDF } from '../services/export.js';
 
 let _filter = { playerId: '', year: '', month: '', status: '' };
