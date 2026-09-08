@@ -1,5 +1,6 @@
 // services/messages.js
-// Plantillas de mensajes (4 niveles de mora) con placeholders dinámicos.
+// Plantillas de mensajes (5 niveles: recordatorio_proximo, recordatorio, mora1, mora3, mora5)
+// + generación de imagen CLABE.
 // Plantillas proporcionadas por el Profesor Haziel Macias.
 
 import { classifyMora } from './mora.js';
@@ -25,7 +26,65 @@ function fill(template, vars) {
   return template.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? `{${k}}`));
 }
 
+/**
+ * Clasifica el nivel del mensaje para un jugador.
+ * Niveles:
+ *   - 'recordatorio_proximo' → 1-3 días ANTES del día de pago
+ *   - 'recordatorio'         → día de pago (sin atraso)
+ *   - 'mora1'                → 1-2 días de atraso
+ *   - 'mora3'                → 3-4 días de atraso
+ *   - 'mora5'                → 5+ días de atraso
+ */
+export function classifyMessageLevel(player, today = new Date()) {
+  const pd = Number(player?.paymentDay);
+  if (!pd || pd < 1 || pd > 31) return classifyMora(player, today);
+
+  const day = today.getDate();
+  // Aún no llega el día de pago
+  if (day < pd) {
+    const daysUntil = pd - day;
+    if (daysUntil <= 3) return 'recordatorio_proximo';
+    return 'recordatorio';
+  }
+  // Día de pago o después: usa clasificador de mora
+  return classifyMora(player, today);
+}
+
+/** Devuelve el día del mes en que le toca pagar este mes al jugador. */
+function dueDayThisMonth(player, today) {
+  const pd = Number(player?.paymentDay);
+  if (!pd) return null;
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  return Math.min(pd, lastDay);
+}
+
+/** Devuelve un texto relativo tipo "hoy", "mañana", "en 3 días". */
+function relativeDay(daysFromToday) {
+  if (daysFromToday === 0) return 'hoy';
+  if (daysFromToday === 1) return 'mañana';
+  return `en ${daysFromToday} días`;
+}
+
 // ============ PLANTILLAS ============ //
+
+const TPL_RECORDATORIO_PROXIMO = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
+
+Te escribo por este medio para recordarte amablemente que tu fecha de pago de la mensualidad es {diasTexto}:
+
+Monto: {monto}
+
+📅 Fecha de pago: {fechaPago}
+
+Para que puedas realizar tu transferencia con tiempo, te comparto los datos oficiales de la cuenta:
+
+Banco: {banco}
+Titular: {titular}
+CLABE Interbancaria: {clabe}
+Concepto de Pago: {concepto}
+
+⚠️ Nota: Una vez realizada tu transferencia, te pido de favor que me compartas tu comprobante por este chat privado para poder registrarlo adecuadamente.
+
+Muchas gracias por tu atención y tu puntualidad de siempre. ¡Que sigas teniendo una excelente tarde y mucho éxito! 🌟✨`;
 
 const TPL_RECORDATORIO = `Hola {nombre}, espero que te encuentres muy bien. Te saluda el Profesor Haziel Macias.
 
@@ -106,18 +165,26 @@ Muchas gracias por tu atención y comprensión. ¡Que sigas teniendo una excelen
 
 /**
  * Renderiza el mensaje para un jugador pendiente.
- * @param {{id:string, name:string, paymentDay:1|15}} player
+ * @param {{id:string, name:string, paymentDay:1|31}} player
  * @param {{year:number, month:number, amount:number}} payment
  * @param {Date} [today]
  * @returns {{ level: string, text: string }}
  */
 export function renderMessage(player, payment, today = new Date()) {
-  const level = classifyMora(player, today);
-  const diasAtraso = Math.max(0, today.getDate() - player.paymentDay);
+  const level = classifyMessageLevel(player, today);
+
+  // Calcular días hasta / desde el día de pago de este mes
+  const dueDay = dueDayThisMonth(player, today);
+  const daysDiff = dueDay != null ? dueDay - today.getDate() : 0;
+  const dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay || 1);
+  const fechaPago = dueDate.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
+  const diasAtraso = Math.max(0, -daysDiff);
 
   const vars = {
     nombre:      firstName(player.name),
     monto:       formatMXN(payment?.amount ?? 0),
+    diasTexto:   relativeDay(daysDiff),
+    fechaPago,
     diasAtraso:  diasAtraso || '',
     banco:       BANK_INFO.banco,
     titular:     BANK_INFO.titular,
@@ -127,11 +194,12 @@ export function renderMessage(player, payment, today = new Date()) {
 
   let text;
   switch (level) {
-    case 'recordatorio': text = fill(TPL_RECORDATORIO, vars); break;
-    case 'mora1':        text = fill(TPL_MORA1, vars); break;
-    case 'mora3':        text = fill(TPL_MORA3, vars); break;
-    case 'mora5':        text = fill(TPL_MORA5, vars); break;
-    default:             text = '';
+    case 'recordatorio_proximo': text = fill(TPL_RECORDATORIO_PROXIMO, vars); break;
+    case 'recordatorio':         text = fill(TPL_RECORDATORIO, vars); break;
+    case 'mora1':                text = fill(TPL_MORA1, vars); break;
+    case 'mora3':                text = fill(TPL_MORA3, vars); break;
+    case 'mora5':                text = fill(TPL_MORA5, vars); break;
+    default:                     text = '';
   }
 
   return { level, text };
@@ -151,4 +219,125 @@ export async function copyToClipboard(text) {
   ta.select();
   document.execCommand('copy');
   document.body.removeChild(ta);
+}
+
+// ============ IMAGEN CLABE ============ //
+
+/**
+ * Genera una imagen PNG con los datos bancarios del club (Banco, Titular, CLABE, Concepto).
+ * Usa Canvas API; funciona sin librerías externas.
+ * @returns {Promise<Blob>}
+ */
+export async function generateClabeImage() {
+  const W = 720, H = 480;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Fondo blanco
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  // Header oscuro
+  ctx.fillStyle = '#09090B';
+  ctx.fillRect(0, 0, W, 80);
+
+  // Texto header: marca
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '600 24px Inter, system-ui, -apple-system, Segoe UI, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Alebrijes Mensualidad', 32, 40);
+
+  // Texto header: subtítulo derecha
+  ctx.font = '500 12px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#A1A1AA';
+  ctx.textAlign = 'right';
+  ctx.fillText('DATOS PARA TRANSFERENCIA', W - 32, 40);
+  ctx.textAlign = 'left';
+
+  // Filas de información bancaria
+  const rows = [
+    { label: 'Banco',                  value: BANK_INFO.banco,    size: 'normal' },
+    { label: 'Titular',                value: BANK_INFO.titular,   size: 'normal' },
+    { label: 'CLABE Interbancaria',    value: BANK_INFO.clabe,     size: 'large', mono: true },
+    { label: 'Concepto de pago',       value: BANK_INFO.concepto,  size: 'normal' },
+  ];
+
+  const startY = 128;
+  const rowHeight = 76;
+
+  rows.forEach((row, i) => {
+    const y = startY + i * rowHeight;
+
+    // Label
+    ctx.fillStyle = '#71717A';
+    ctx.font = '600 11px Inter, system-ui, sans-serif';
+    ctx.fillText(row.label.toUpperCase(), 32, y);
+
+    // Value
+    ctx.fillStyle = '#09090B';
+    if (row.size === 'large' && row.mono) {
+      ctx.font = '600 28px "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
+    } else {
+      ctx.font = '500 17px Inter, system-ui, sans-serif';
+    }
+    ctx.fillText(row.value, 32, y + 30);
+
+    // Separator
+    ctx.fillStyle = '#F4F4F5';
+    ctx.fillRect(32, y + 60, W - 64, 1);
+  });
+
+  // Footer
+  ctx.fillStyle = '#71717A';
+  ctx.font = '400 11px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Una vez realizada tu transferencia, comparte el comprobante por este chat.', W / 2, H - 22);
+  ctx.textAlign = 'left';
+
+  // Convertir a Blob PNG
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('No se pudo generar la imagen'));
+    }, 'image/png');
+  });
+}
+
+/**
+ * Copia la imagen CLABE al portapapeles. Si el navegador no soporta imagen
+ * en clipboard, descarga el archivo como fallback.
+ * @returns {Promise<{ok: true, method: 'clipboard'|'download'}>}
+ */
+export async function copyClabeImage() {
+  const blob = await generateClabeImage();
+
+  // Intentar copiar al portapapeles
+  if (
+    typeof ClipboardItem !== 'undefined' &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.write === 'function'
+  ) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob }),
+      ]);
+      return { ok: true, method: 'clipboard' };
+    } catch (e) {
+      // Algunos navegadores fallan silenciosamente; caemos al fallback
+      console.warn('Clipboard image write no soportado, usando descarga', e);
+    }
+  }
+
+  // Fallback: descarga
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `datos-pago-${BANK_INFO.banco.toLowerCase()}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return { ok: true, method: 'download' };
 }

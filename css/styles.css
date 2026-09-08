@@ -341,6 +341,136 @@
 .progress-lg > .bar-pending { background: #E4E4E7; }
 
 /* ============================================
+   COMBOBOX (selector de jugador en form de pago)
+   ============================================ */
+.combobox { position: relative; }
+.combobox-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  box-shadow: 0 12px 24px -8px rgba(24, 24, 27, 0.18);
+  list-style: none;
+  padding: 4px;
+  margin: 0;
+}
+.combobox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 100ms;
+}
+.combobox-item:hover,
+.combobox-item[aria-selected="true"] {
+  background: #F4F4F5;
+}
+.combobox-item .ci-name  { font-size: 13px; font-weight: 500; color: #18181B; }
+.combobox-item .ci-meta  { font-size: 11px; color: #71717A; }
+.combobox-item .ci-amt   { font-size: 12px; font-weight: 600; color: #18181B; font-variant-numeric: tabular-nums; }
+.combobox-empty {
+  padding: 18px 12px;
+  text-align: center;
+  color: #71717A;
+  font-size: 13px;
+}
+
+/* Tarjeta de jugador seleccionado en form de pago */
+.selected-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #FAFAFA;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+}
+.selected-player .sp-name { font-size: 14px; font-weight: 500; color: #18181B; }
+.selected-player .sp-meta { font-size: 11px; color: #71717A; margin-top: 2px; }
+
+/* ============================================
+   PERIOD CHIPS (selector de mes en form de pago)
+   ============================================ */
+.period-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.period-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #E4E4E7;
+  border-radius: 9999px;
+  background: #FFFFFF;
+  color: #52525B;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms;
+  white-space: nowrap;
+}
+.period-chip:hover {
+  background: #F4F4F5;
+  border-color: #D4D4D8;
+}
+.period-chip.is-active {
+  background: #09090B;
+  color: #FFFFFF;
+  border-color: #09090B;
+}
+.period-chip.is-paid {
+  background: #F4F4F5;
+  color: #A1A1AA;
+  cursor: not-allowed;
+}
+.period-chip.is-paid:hover {
+  background: #F4F4F5;
+  border-color: #E4E4E7;
+}
+.period-chip .pc-tick {
+  font-size: 11px;
+  color: #10B981;
+}
+.period-chip.is-active .pc-tick { color: #34D399; }
+
+/* ============================================
+   PAYMENT FORM steps label
+   ============================================ */
+.step-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #71717A;
+  margin-bottom: 6px;
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #F4F4F5;
+  color: #52525B;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ============================================
    MOROSO ROW (dashboard, estilo tabla simple)
    ============================================ */
 .moroso-row {

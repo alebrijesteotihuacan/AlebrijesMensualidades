@@ -5,6 +5,7 @@ import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, av
 import { players, payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
 import { daysMora, formatMXN, formatDate, monthName } from '../utils/dates.js';
+import { openPaymentForm } from './payments.js';
 
 let _filter = { category: '', status: '', dayRange: '', search: '' };
 
@@ -322,7 +323,10 @@ function openPlayerDrawer(id) {
 
   const footer = `
     ${!p.exempt ? `
-      <button data-msg type="button" class="btn btn-primary w-full justify-center" ${p.status === 'paid' ? 'disabled' : ''}>
+      <button data-pay type="button" class="btn btn-primary w-full justify-center">
+        ${ICON.plus}<span>Registrar pago</span>
+      </button>
+      <button data-msg type="button" class="btn btn-secondary w-full justify-center" ${p.status === 'paid' ? 'disabled' : ''}>
         ${ICON.chat}<span>Copiar mensaje de pago</span>
       </button>` : ''}
     <div class="grid grid-cols-2 gap-2">
@@ -349,6 +353,10 @@ function openPlayerDrawer(id) {
   drawer.panel.querySelector('[data-msg]')?.addEventListener('click', (e) => {
     const btn = e.currentTarget;
     openMessageMenu(btn, p, { amount: amountForPlayer(p) });
+  });
+  drawer.panel.querySelector('[data-pay]')?.addEventListener('click', () => {
+    drawer.close();
+    openPaymentForm(null, p.id);
   });
 }
 
