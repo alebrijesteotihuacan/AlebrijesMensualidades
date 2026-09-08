@@ -36,12 +36,14 @@ export function renderDashboard(root) {
           sub: `${stats.exempt} exento${stats.exempt === 1 ? '' : 's'}${stats.expectedPlayers > 0 ? ` · ${stats.expectedPlayers} por pagar` : ''}`,
         })}
         ${kpiCard({
-          label: 'Al día',
-          value: stats.currentPaid,
+          label: 'Al corriente',
+          value: stats.currentAlDia,
           icon: 'check',
           tone: 'success',
-          sub: `${stats.currentPct}% del mes`,
-          progress: { total: stats.expectedPlayers, filled: stats.currentPaid, tone: 'success' },
+          sub: stats.currentAlDia > 0
+            ? `${stats.currentPct}% sin adeudo · ${stats.currentPaid} pagaron`
+            : 'Todos en adeudo',
+          progress: { total: stats.expectedPlayers, filled: stats.currentAlDia, tone: 'success' },
         })}
         ${kpiCard({
           label: 'Pendientes',
@@ -519,10 +521,13 @@ function computeStats(current) {
   const currentMorosos = status.overdue;
   const currentNoAlert = status.beforeAlert; // aún no es su día
 
+  // Al corriente = jugadores que NO tienen adeudo (pagaron + aún no es su día + alerta sin vencer)
+  const currentAlDia = currentPaid + currentPending + currentNoAlert;
+
   // Base: jugadores con pago esperado este mes (todos los no exentos)
   const expectedPlayers = currentPaid + currentPending + currentMorosos + currentNoAlert;
   const currentPct = expectedPlayers > 0
-    ? Math.round((currentPaid / expectedPlayers) * 100)
+    ? Math.round((currentAlDia / expectedPlayers) * 100)
     : 0;
 
   // Lista de Adeudos: combina pendientes (próximos) + vencidos, ordenados por urgencia
@@ -583,6 +588,7 @@ function computeStats(current) {
     currentPending,
     currentMorosos,
     currentNoAlert,
+    currentAlDia,
     currentPct,
     morosos: currentMorosos,
     upcoming,
