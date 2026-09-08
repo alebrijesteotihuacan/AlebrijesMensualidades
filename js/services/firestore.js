@@ -45,6 +45,8 @@ export const payments = {
 /** === Categories === */
 export const categories = {
   all: () => getAll('categories'),
+  add: (data) => addDoc(collection(db, 'categories'), { ...data, ...stamp() }),
+  update: (id, data) => updateDoc(doc(db, 'categories', id), { ...data, updatedAt: serverTimestamp() }),
   upsert: async (id, data) => setDoc(doc(db, 'categories', id), { ...data, updatedAt: serverTimestamp() }, { merge: true }),
   remove: (id) => deleteDoc(doc(db, 'categories', id)),
   subscribe: (cb) => subscribeCol('categories', cb),

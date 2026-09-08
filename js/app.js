@@ -6,6 +6,7 @@ import { renderDashboard } from './views/dashboard.js';
 import { renderPlayers }   from './views/players.js';
 import { renderPayments }  from './views/payments.js';
 import { renderStats }     from './views/stats.js';
+import { renderCategories } from './views/categories.js';
 
 // ============ STATE GLOBAL ============ //
 export const state = {
@@ -34,6 +35,7 @@ const ROUTES = {
   players:    renderPlayers,
   payments:   renderPayments,
   stats:      renderStats,
+  categories: renderCategories,
 };
 
 function getRoute() {
