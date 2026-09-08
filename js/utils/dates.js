@@ -101,9 +101,9 @@ export function relativeDate(s) {
   return formatDate(s);
 }
 
-/** Etiqueta legible de quincena: "Q1 - 2026" */
+/** Etiqueta legible de quincena: "Q1 · 1-15" (sin año, va aparte) */
 export function quincenaLabel(year, q) {
-  return `Q${q} · ${year} · ${q === 1 ? '1-15' : '16-31'}`;
+  return `Q${q} · ${q === 1 ? '1-15' : '16-31'}`;
 }
 
 /** Nombre del mes en español */
