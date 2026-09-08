@@ -26,14 +26,39 @@ export function renderDashboard(root) {
         </div>
       </div>
 
-      <!-- STATS (4 inline) -->
-      <div class="card card-pad">
-        <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-100">
-          ${statBlock('Total jugadores',  stats.totalPlayers,  `${stats.exempt} exento${stats.exempt === 1 ? '' : 's'}`)}
-          ${statBlock('Al día',           stats.currentPaid,   `${stats.currentPct}% del período`, 'success')}
-          ${statBlock('Pendientes',       stats.currentPending,'Alerta pasada · sin pagar', 'warning')}
-          ${statBlock('Adeudo',           stats.morosos,       'Día de pago vencido', 'danger')}
-        </div>
+      <!-- KPI CARDS (4 rediseñados) -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        ${kpiCard({
+          label: 'Total jugadores',
+          value: stats.totalPlayers,
+          icon: 'users',
+          tone: 'neutral',
+          sub: `${stats.exempt} exento${stats.exempt === 1 ? '' : 's'}${stats.expectedPlayers > 0 ? ` · ${stats.expectedPlayers} por pagar` : ''}`,
+        })}
+        ${kpiCard({
+          label: 'Al día',
+          value: stats.currentPaid,
+          icon: 'check',
+          tone: 'success',
+          sub: `${stats.currentPct}% del mes`,
+          progress: { total: stats.expectedPlayers, filled: stats.currentPaid, tone: 'success' },
+        })}
+        ${kpiCard({
+          label: 'Pendientes',
+          value: stats.currentPending,
+          icon: 'clock',
+          tone: 'warning',
+          sub: stats.currentPending > 0 ? 'Día de pago aún no vence' : 'Sin pendientes en alerta',
+          progress: { total: stats.expectedPlayers, filled: stats.currentPending, tone: 'warning' },
+        })}
+        ${kpiCard({
+          label: 'Adeudo',
+          value: stats.currentMorosos,
+          icon: 'ban',
+          tone: 'danger',
+          sub: stats.currentMorosos > 0 ? 'Día de pago vencido' : 'Sin adeudos',
+          progress: { total: stats.expectedPlayers, filled: stats.currentMorosos, tone: 'danger' },
+        })}
       </div>
 
       <!-- COBRANZA -->
@@ -258,16 +283,40 @@ function positionTooltip(e, wrap, tip) {
 
 // ============ COMPONENTES ============ //
 
-function statBlock(label, value, sub, tone) {
-  const dot = tone === 'success' ? 'dot-success' : tone === 'warning' ? 'dot-warning' : tone === 'danger' ? 'dot-danger' : '';
+const KPI_ICON = {
+  users:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+  check:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>',
+  clock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  ban:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+};
+
+const KPI_TONE = {
+  neutral: { icon: '#52525B', bar: '#E4E4E7' },
+  success: { icon: '#10B981', bar: '#10B981' },
+  warning: { icon: '#F59E0B', bar: '#F59E0B' },
+  danger:  { icon: '#EF4444', bar: '#EF4444' },
+};
+
+function kpiCard({ label, value, icon, tone = 'neutral', sub, progress }) {
+  const t = KPI_TONE[tone] || KPI_TONE.neutral;
+  const pct = progress && progress.total > 0
+    ? Math.min(100, Math.round((progress.filled / progress.total) * 100))
+    : 0;
+  const progressHTML = progress ? `
+    <div class="kpi-progress" aria-hidden="true">
+      <div class="kpi-progress-bar" style="width: ${pct}%; background: ${t.bar};"></div>
+    </div>
+    <p class="kpi-progress-pct">${pct}%</p>
+  ` : '';
   return `
-    <div class="px-4 sm:px-6 first:pl-0 sm:first:pl-6 last:pr-0 sm:last:pr-6">
-      <p class="stat-label">${escapeHTML(label)}</p>
-      <p class="stat-value mt-1">${value}</p>
-      <div class="flex items-center gap-1.5 mt-1.5">
-        ${dot ? `<span class="status-dot ${dot}"></span>` : ''}
-        <p class="stat-sub">${escapeHTML(sub)}</p>
+    <div class="kpi-card kpi-card--${tone}">
+      <div class="kpi-head">
+        <span class="kpi-icon" style="color: ${t.icon};">${KPI_ICON[icon] || ''}</span>
+        <p class="kpi-label">${escapeHTML(label)}</p>
       </div>
+      <p class="kpi-value tabular-nums">${value}</p>
+      <p class="kpi-sub">${escapeHTML(sub)}</p>
+      ${progressHTML}
     </div>
   `;
 }
@@ -460,14 +509,21 @@ function computeStats(current) {
   // ===== Auto-pending (virtual) — generado por paymentDay =====
   const status = classifyPlayersByStatus(players, payments, today, current);
 
-  // Al día: SOLO jugadores con registro 'paid' real del mes actual
+  // Desglose de jugadores NO exentos:
+  // - currentPaid:     pagaron este mes (registro paid real)
+  // - currentPending:  alerta pasada pero el día de pago aún NO vence
+  // - currentMorosos:  día de pago vencido sin pago
+  // - currentNoAlert:  aún no es momento (alerta no ha pasado)
   const currentPaid    = status.paid;
-  // Pendientes: aún no pagan (alerta no llegó, o llegó pero no venció)
-  const currentPending = status.beforeAlert + status.pending;
-  // Adeudo: alerta pasó y día de pago vencido sin pago
-  const morosos        = status.overdue;
-  const currentTotal   = currentPaid + currentPending + morosos;
-  const currentPct     = currentTotal ? Math.round((currentPaid / currentTotal) * 100) : 0;
+  const currentPending = status.pending;     // solo alerta pasada sin vencer
+  const currentMorosos = status.overdue;
+  const currentNoAlert = status.beforeAlert; // aún no es su día
+
+  // Base: jugadores con pago esperado este mes (todos los no exentos)
+  const expectedPlayers = currentPaid + currentPending + currentMorosos + currentNoAlert;
+  const currentPct = expectedPlayers > 0
+    ? Math.round((currentPaid / expectedPlayers) * 100)
+    : 0;
 
   // Lista de Adeudos: combina pendientes (próximos) + vencidos, ordenados por urgencia
   const adeudosList = getAllAutoPending(players, payments, today, amountForPlayer)
@@ -522,8 +578,11 @@ function computeStats(current) {
   return {
     totalPlayers,
     exempt: exemptCount,
+    expectedPlayers,
     currentPaid,
     currentPending,
+    currentMorosos,
+    currentNoAlert,
     currentPct,
     morosos,
     upcoming,

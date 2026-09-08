@@ -327,13 +327,16 @@ export const ICON = {
 };
 
 // ============ DROPDOWN DE MENSAJES ============ //
-// Catalogo con su icono y tono (reusado por tarjeta y tabla).
+// Catalogo completo con su icono y tono (reusado por tarjeta y tabla).
 export const MSG_LEVELS = [
-  { key: 'recordatorio', label: 'Recordatorio', sub: 'Sin atraso - día límite', tone: 'sky',     icon: 'check' },
-  { key: 'adeudo1',     label: 'Adeudo 1 día',  sub: 'Atraso de 1-2 días',     tone: 'amber',   icon: 'clock' },
-  { key: 'adeudo3',     label: 'Adeudo 3 días', sub: 'Atraso de 3-4 días',     tone: 'orange',  icon: 'alert' },
-  { key: 'adeudo5',     label: 'No podrá entrenar', sub: 'Atraso de 5+ días',  tone: 'red',     icon: 'ban' },
+  { key: 'recordatorio',     label: 'Recordatorio',      sub: 'Sin atraso · día límite',     tone: 'sky',    icon: 'check' },
+  { key: 'adeudo1',          label: 'Adeudo 1 día',      sub: 'Atraso de 1-2 días',           tone: 'amber',  icon: 'clock' },
+  { key: 'adeudo3',          label: 'Adeudo 3 días',     sub: 'Atraso de 3-4 días',           tone: 'orange', icon: 'alert' },
+  { key: 'adeudo5',          label: 'No podrá entrenar', sub: 'Atraso de 5+ días',           tone: 'red',    icon: 'ban' },
 ];
+
+// Orden de severidad (de menor a mayor)
+const LEVEL_ORDER = { recordatorio: 0, adeudo1: 1, adeudo3: 2, adeudo5: 3 };
 
 const TONE_CLASS = {
   sky:    { bg: 'bg-[#D5E0EC]', text: 'text-[#142A47]' },
@@ -345,82 +348,109 @@ const TONE_CLASS = {
 const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
 
 /**
- * Abre un menu flotante con las 4 opciones de mensaje para el jugador.
+ * Devuelve los niveles de mensaje que aplican al jugador según su estado actual.
+ * - Jugador al día → solo Recordatorio
+ * - Jugador con adeudo1 → Recordatorio + Adeudo 1 día
+ * - Jugador con adeudo3 → Recordatorio + Adeudo 1 día + Adeudo 3 días
+ * - Jugador con adeudo5 → todos los niveles
+ *
+ * @param {{paymentDay?:number, exempt?:boolean}} player
+ * @param {(p:any,t?:Date)=>'recordatorio'|'adeudo1'|'adeudo3'|'adeudo5'} classifyFn
+ * @returns {Array} niveles filtrados (subconjunto de MSG_LEVELS)
+ */
+export function availableMsgLevels(player, classifyFn) {
+  if (!player || player.exempt) return [];
+  const current = classifyFn(player, new Date());
+  const maxAllowed = LEVEL_ORDER[current] ?? 0;
+  return MSG_LEVELS.filter((m) => (LEVEL_ORDER[m.key] ?? 0) <= maxAllowed);
+}
+
+/**
+ * Abre un menu flotante con los niveles de mensaje aplicables al jugador.
+ * Solo se muestran las opciones que corresponden al estado real
+ * (ej: 'No podrá entrenar' solo aparece cuando el adeudo es 5+ días).
+ *
  * @param {HTMLElement} anchor  boton que dispara el menu
- * @param {{id:string, name:string, paymentDay:1|15, category?:string, phone?:string}} player
+ * @param {{id:string, name:string, paymentDay?:number, category?:string, phone?:string, exempt?:boolean}} player
  * @param {{amount?:number}} [payment]   para los placeholders {monto}
  */
 export function openMessageMenu(anchor, player, payment = {}) {
   closeMessageMenu();
-  // Importacion dinamica para no romper en entornos sin bundler
   import('./services/messages.js').then(({ renderMessage, copyToClipboard }) => {
-    const rect = anchor.getBoundingClientRect();
-    const menu = document.createElement('div');
-    menu.className = 'msg-menu';
-    menu.id = 'msg-menu';
-    const itemHTML = MSG_LEVELS.map((m) => {
-      const tone = TONE_CLASS[m.tone] || TONE_CLASS.sky;
-      const ic = m.icon === 'ban' ? BAN_ICON : (ICON[m.icon] || ICON.chat);
-      return `
-        <button type="button" class="msg-menu-item" data-level="${m.key}">
-          <span class="msg-icon ${tone.bg} ${tone.text}">${ic}</span>
-          <span class="min-w-0">
-            <span class="msg-title">${m.label}</span>
-            <span class="msg-sub block">${m.sub}</span>
-          </span>
-        </button>
-      `;
-    }).join('');
+    import('./services/adeudo.js').then(({ classifyAdeudo }) => {
+      const levels = availableMsgLevels(player, classifyAdeudo);
+      if (levels.length === 0) {
+        toast('Este jugador está becado o sin adeudo', 'info');
+        return;
+      }
 
-    menu.innerHTML = itemHTML;
-    document.body.appendChild(menu);
+      const real = classifyAdeudo(player, new Date());
 
-    // Posicionamiento: preferido derecha, sino izquierda, sino abajo
-    const mw = 320, mh = menu.offsetHeight || 280;
-    let left = rect.right - mw;
-    if (left < 8) left = 8;
-    let top = rect.bottom + 8;
-    if (top + mh > window.innerHeight - 8) {
-      top = rect.top - mh - 8;
-    }
-    if (top < 8) top = 8;
-    menu.style.left = `${left}px`;
-    menu.style.top  = `${top}px`;
+      const rect = anchor.getBoundingClientRect();
+      const menu = document.createElement('div');
+      menu.className = 'msg-menu';
+      menu.id = 'msg-menu';
 
-    const backdrop = document.createElement('div');
-    backdrop.className = 'msg-backdrop';
-    backdrop.id = 'msg-backdrop';
-    document.body.appendChild(backdrop);
+      const itemHTML = levels.map((m) => {
+        const tone = TONE_CLASS[m.tone] || TONE_CLASS.sky;
+        const ic = m.icon === 'ban' ? BAN_ICON : (ICON[m.icon] || ICON.chat);
+        const isCurrent = m.key === real;
+        return `
+          <button type="button" class="msg-menu-item ${isCurrent ? 'is-current' : ''}" data-level="${m.key}">
+            <span class="msg-icon ${tone.bg} ${tone.text}">${ic}</span>
+            <span class="min-w-0 flex-1">
+              <span class="msg-title">${m.label}</span>
+              <span class="msg-sub block">${m.sub}</span>
+            </span>
+            ${isCurrent ? '<span class="msg-current-dot" aria-label="Nivel actual"></span>' : ''}
+          </button>
+        `;
+      }).join('');
 
-    backdrop.addEventListener('click', closeMessageMenu);
-    document.addEventListener('keydown', escClose);
+      menu.innerHTML = itemHTML;
+      document.body.appendChild(menu);
 
-    menu.querySelectorAll('[data-level]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const level = btn.dataset.level;
-        const fakePayment = {
-          year: new Date().getFullYear(),
-          quincena: new Date().getDate() <= 15 ? 1 : 2,
-          amount: payment.amount ?? amountForPlayer(player),
-        };
-        const today = new Date();
-        // Si el nivel real coincide con el forzado, lo usamos tal cual.
-        // Si no, ajustamos paymentDay en una copia del jugador para forzar el nivel deseado.
-        let effectivePlayer = player;
-        const real = renderMessage(player, fakePayment, today);
-        if (real.level !== level) {
-          const offset = level === 'adeudo1' ? 1 : level === 'adeudo3' ? 3 : level === 'adeudo5' ? 5 : 0;
-          effectivePlayer = { ...player, paymentDay: player.paymentDay - offset };
-        }
-        const { text } = renderMessage(effectivePlayer, fakePayment, today);
-        try {
-          await copyToClipboard(text);
-          toast(`Mensaje copiado (${btn.querySelector('.msg-title').textContent})`, 'success', 2500);
-        } catch (e) {
-          console.error(e);
-          toast('No se pudo copiar', 'error');
-        }
-        closeMessageMenu();
+      const mw = 320, mh = menu.offsetHeight || 200;
+      let left = rect.right - mw;
+      if (left < 8) left = 8;
+      let top = rect.bottom + 8;
+      if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 8);
+      menu.style.left = `${left}px`;
+      menu.style.top  = `${top}px`;
+
+      const backdrop = document.createElement('div');
+      backdrop.className = 'msg-backdrop';
+      backdrop.id = 'msg-backdrop';
+      document.body.appendChild(backdrop);
+
+      backdrop.addEventListener('click', closeMessageMenu);
+      document.addEventListener('keydown', escClose);
+
+      menu.querySelectorAll('[data-level]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const level = btn.dataset.level;
+          const fakePayment = {
+            year: new Date().getFullYear(),
+            quincena: new Date().getDate() <= 15 ? 1 : 2,
+            amount: payment.amount ?? amountForPlayer(player),
+          };
+          const today = new Date();
+          let effectivePlayer = player;
+          const realMsg = renderMessage(player, fakePayment, today);
+          if (realMsg.level !== level) {
+            const offset = level === 'adeudo1' ? 1 : level === 'adeudo3' ? 3 : level === 'adeudo5' ? 5 : 0;
+            effectivePlayer = { ...player, paymentDay: player.paymentDay - offset };
+          }
+          const { text } = renderMessage(effectivePlayer, fakePayment, today);
+          try {
+            await copyToClipboard(text);
+            toast(`Mensaje copiado (${btn.querySelector('.msg-title').textContent})`, 'success', 2500);
+          } catch (e) {
+            console.error(e);
+            toast('No se pudo copiar', 'error');
+          }
+          closeMessageMenu();
+        });
       });
     });
   });
