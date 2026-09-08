@@ -226,7 +226,7 @@ function morosoRow(p) {
   const dotClass = dias >= 5 ? 'dot-danger' : dias >= 3 ? 'dot-warning' : 'dot-warning';
   return `
     <div class="moroso-row">
-      <div class="avatar size-md" style="${avatarGradient(p.name)}">${escapeHTML(initialsOf(p.name))}</div>
+      <div class="avatar size-md" style="${avatarGradient(p)}">${escapeHTML(initialsOf(p.name))}</div>
       <div class="min-w-0 flex-1">
         <p class="moroso-name">${escapeHTML(p.name)}</p>
         <p class="moroso-meta">${escapeHTML(p.category || '—')}</p>

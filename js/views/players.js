@@ -185,7 +185,7 @@ function playerCard(p) {
     <article class="player-card" data-status="${p.status}" data-player="${p.id}" role="button" tabindex="0" aria-label="Ver información de ${escapeHTML(p.name)}">
       <!-- Header -->
       <div class="flex items-start gap-3">
-        <div class="avatar size-lg" style="${avatarGradient(p.name)}" aria-hidden="true">${escapeHTML(initialsOf(p.name))}</div>
+        <div class="avatar size-lg" style="${avatarGradient(p)}" aria-hidden="true">${escapeHTML(initialsOf(p.name))}</div>
         <div class="min-w-0 flex-1">
           <h3 class="player-name truncate">${escapeHTML(p.name)}</h3>
           <p class="player-meta truncate">${escapeHTML(p.category || 'Sin categoría')}</p>
@@ -259,7 +259,7 @@ function openPlayerDrawer(id) {
 
   const body = `
     <div class="flex items-center gap-3 mb-4">
-      <div class="avatar size-lg" style="${avatarGradient(p.name)}" aria-hidden="true">${escapeHTML(initialsOf(p.name))}</div>
+      <div class="avatar size-lg" style="${avatarGradient(p)}" aria-hidden="true">${escapeHTML(initialsOf(p.name))}</div>
       <div class="min-w-0 flex-1">
         <p class="font-semibold text-base truncate">${escapeHTML(p.name)}</p>
         <p class="text-xs text-zinc-500 truncate">${escapeHTML(p.category || 'Sin categoría')}</p>

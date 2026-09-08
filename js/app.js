@@ -430,20 +430,38 @@ export function closeMessageMenu() {
 }
 function escClose(e) { if (e.key === 'Escape') closeMessageMenu(); }
 
-// Color sólido determinístico por nombre para avatares.
-// Paleta acotada y neutra — sin gradientes.
-export function avatarGradient(name = '') {
-  const palette = [
-    '#52525B', // zinc-600
-    '#3F3F46', // zinc-700
-    '#27272A', // zinc-800
-    '#71717A', // zinc-500
-    '#09090B', // zinc-950
-    '#A1A1AA', // zinc-400
-    '#1E293B', // slate-800
-    '#334155', // slate-700
-  ];
+// Color sólido determinístico POR CATEGORÍA.
+// 5 colores fijos asignados en orden a las categorías del club.
+// Todos los jugadores de la misma categoría comparten color.
+const CATEGORY_PALETTE = [
+  '#F26B1F', // Naranja
+  '#27272A', // Negro
+  '#1E3A5F', // Azul
+  '#7C3AED', // Morado
+  '#10B981', // Verde
+];
+
+// Mapa cacheado: nombre de categoría → índice de color (asignación estable).
+const _categoryColorIndex = new Map();
+let _nextColorIdx = 0;
+
+function getCategoryColorIdx(category) {
+  if (!category) return 4; // verde por defecto para sin categoría
+  if (_categoryColorIndex.has(category)) return _categoryColorIndex.get(category);
+  // Hash del nombre para asignación determinística pero con buena dispersión
   let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return `--avatar-color:${palette[h % palette.length]};`;
+  for (let i = 0; i < category.length; i++) h = (h * 31 + category.charCodeAt(i)) >>> 0;
+  const idx = (h + _nextColorIdx) % CATEGORY_PALETTE.length;
+  _categoryColorIndex.set(category, idx);
+  return idx;
+}
+
+/**
+ * Devuelve el CSS variable para el avatar según la categoría.
+ * Acepta un jugador (objeto con .category) o un string (nombre de categoría o nombre del jugador como fallback).
+ */
+export function avatarGradient(seed = '') {
+  const category = typeof seed === 'string' ? seed : (seed?.category || seed?.name || '');
+  const idx = getCategoryColorIdx(category);
+  return `--avatar-color:${CATEGORY_PALETTE[idx]};`;
 }

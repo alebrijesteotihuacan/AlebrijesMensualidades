@@ -164,7 +164,7 @@ function rowHTML(p) {
     <tr>
       <td>
         <div class="flex items-center gap-2.5 min-w-0">
-          <div class="avatar size-sm shrink-0" style="${avatarGradient(playerName)}">${escapeHTML(initialsOf(playerName))}</div>
+          <div class="avatar size-sm shrink-0" style="${avatarGradient(player)}">${escapeHTML(initialsOf(playerName))}</div>
           <span class="font-medium truncate">${escapeHTML(playerName)}</span>
         </div>
       </td>
