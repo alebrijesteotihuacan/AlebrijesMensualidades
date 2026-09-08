@@ -584,7 +584,7 @@ function computeStats(current) {
     currentMorosos,
     currentNoAlert,
     currentPct,
-    morosos,
+    morosos: currentMorosos,
     upcoming,
     adeudosList,
     adeudosVencidos,
