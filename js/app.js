@@ -106,15 +106,14 @@ export function toast(message, type = 'info', duration = 3500) {
   const root = TOAST_ROOT();
   if (!root) return;
   const el = document.createElement('div');
-  el.className = `toast toast-${type}`;
+  el.className = `toast is-${type}`;
   el.setAttribute('role', type === 'error' ? 'alert' : 'status');
   el.innerHTML = `${ICONS[type] || ICONS.info}<span>${escapeHTML(message)}</span>`;
   root.appendChild(el);
   setTimeout(() => {
-    el.style.transition = 'opacity .2s, transform .2s';
+    el.style.transition = 'opacity .15s';
     el.style.opacity = '0';
-    el.style.transform = 'translateY(-6px)';
-    setTimeout(() => el.remove(), 200);
+    setTimeout(() => el.remove(), 150);
   }, duration);
 }
 
@@ -343,21 +342,20 @@ export function closeMessageMenu() {
 }
 function escClose(e) { if (e.key === 'Escape') closeMessageMenu(); }
 
-// Paleta deterministica por nombre para avatares.
-// Paleta cromada institucional: oscuros + acentos alebrije.
+// Color sólido determinístico por nombre para avatares.
+// Paleta acotada y neutra — sin gradientes.
 export function avatarGradient(name = '') {
-  const palettes = [
-    ['#345C85', '#0A0E1A'], // steel deep
-    ['#1E3A5F', '#050D1A'], // navy black
-    ['#F26B1F', '#7A2D07'], // alebrije naranja
-    ['#FF7B1A', '#A73F0A'], // alebrije vivo
-    ['#4F7AAB', '#142A47'], // steel medio
-    ['#0A0E1A', '#345C85'], // black to steel
-    ['#A73F0A', '#0A0E1A'], // cobre a negro
-    ['#1E3A5F', '#A73F0A'], // navy a cobre
+  const palette = [
+    '#52525B', // zinc-600
+    '#3F3F46', // zinc-700
+    '#27272A', // zinc-800
+    '#71717A', // zinc-500
+    '#09090B', // zinc-950
+    '#A1A1AA', // zinc-400
+    '#1E293B', // slate-800
+    '#334155', // slate-700
   ];
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  const [from, to] = palettes[h % palettes.length];
-  return `--avatar-from:${from};--avatar-to:${to};`;
+  return `--avatar-color:${palette[h % palette.length]};`;
 }

@@ -1,10 +1,10 @@
 // js/views/payments.js
-// Vista de Pagos: tabla en desktop, cards en mobile. Filtros colapsables.
+// Vista Pagos: tabla compacta minimalista, sin sección de datos bancarios.
 
 import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, amountForPlayer } from '../app.js';
 import { payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
-import { renderMessage, copyToClipboard, BANK_INFO } from '../services/messages.js';
+import { renderMessage, copyToClipboard } from '../services/messages.js';
 import { formatMXN, formatDate, getCurrentQuincena, quincenaLabel } from '../utils/dates.js';
 import { toCSV, toPDF } from '../services/export.js';
 
@@ -14,29 +14,20 @@ export function renderPayments(root) {
   const current = getCurrentQuincena();
 
   root.innerHTML = `
-    <section class="flex flex-col gap-5">
+    <section class="flex flex-col gap-6">
       <header class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <p class="section-eyebrow">Cobranza</p>
-          <h1 class="font-display font-extrabold text-3xl sm:text-4xl uppercase tracking-tight">Pagos</h1>
-          <p class="muted text-sm mt-1">${escapeHTML(quincenaLabel(current.year, current.quincena))} · Período actual</p>
+          <p class="section-eyebrow">${escapeHTML(quincenaLabel(current.year, current.quincena))} · Período actual</p>
+          <h1 class="section-title text-2xl sm:text-3xl mt-1">Pagos</h1>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <button id="btn-clabe" type="button" class="btn btn-steel">${ICON.bank}<span>Datos bancarios</span></button>
-          <button id="btn-new-payment" type="button" class="btn btn-primary">${ICON.plus}<span>Nuevo pago</span></button>
-        </div>
+        <button id="btn-new-payment" type="button" class="btn btn-primary">
+          ${ICON.plus}<span>Nuevo pago</span>
+        </button>
       </header>
 
-      <!-- Filtros -->
-      <details class="card card-pad" id="filters-card">
-        <summary class="flex items-center justify-between cursor-pointer list-none">
-          <div class="flex items-center gap-3">
-            <span class="section-eyebrow">Filtros</span>
-            <span id="filter-count" class="badge badge-neutral">0 activos</span>
-          </div>
-          <span class="text-ink-500 text-sm">${ICON.chevronDown}</span>
-        </summary>
-        <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+      <!-- Toolbar -->
+      <div class="card card-pad flex flex-col gap-3">
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
           <div class="col-span-2">
             <label class="label" for="f-player">Jugador</label>
             <select id="f-player" class="select">
@@ -67,50 +58,41 @@ export function renderPayments(root) {
               <option value="pending">Pendiente</option>
             </select>
           </div>
-          <div class="col-span-2 lg:col-span-5 flex flex-wrap gap-2 justify-end">
-            <button id="f-clear" type="button" class="btn btn-ghost">Limpiar</button>
-            <button id="btn-export-csv" type="button" class="btn btn-secondary">Exportar CSV</button>
-            <button id="btn-export-pdf" type="button" class="btn btn-secondary">Exportar PDF</button>
-          </div>
         </div>
-      </details>
+        <div class="flex flex-wrap gap-2 justify-end border-t border-zinc-100 pt-3">
+          <button id="f-clear" type="button" class="btn btn-ghost btn-sm">Limpiar</button>
+          <button id="btn-export-csv" type="button" class="btn btn-secondary btn-sm">Exportar CSV</button>
+          <button id="btn-export-pdf" type="button" class="btn btn-secondary btn-sm">Exportar PDF</button>
+        </div>
+      </div>
 
-      <!-- Lista / Tabla -->
+      <!-- Table -->
       <div id="payments-table"></div>
     </section>
   `;
 
-  const playerSel  = root.querySelector('#f-player');
-  const yearSel    = root.querySelector('#f-year');
-  const quincenaSel= root.querySelector('#f-quincena');
-  const statusSel  = root.querySelector('#f-status');
-  const clear      = root.querySelector('#f-clear');
-  const filterCount = root.querySelector('#filter-count');
+  const playerSel   = root.querySelector('#f-player');
+  const yearSel     = root.querySelector('#f-year');
+  const quincenaSel = root.querySelector('#f-quincena');
+  const statusSel   = root.querySelector('#f-status');
+  const clear       = root.querySelector('#f-clear');
 
   playerSel.value   = _filter.playerId;
   yearSel.value     = _filter.year;
   quincenaSel.value = _filter.quincena;
   statusSel.value   = _filter.status;
 
-  playerSel.addEventListener('change',   (e) => { _filter.playerId   = e.target.value; paint(); updateFilterCount(); });
-  yearSel.addEventListener('change',     (e) => { _filter.year       = e.target.value; paint(); updateFilterCount(); });
-  quincenaSel.addEventListener('change', (e) => { _filter.quincena   = e.target.value; paint(); updateFilterCount(); });
-  statusSel.addEventListener('change',   (e) => { _filter.status     = e.target.value; paint(); updateFilterCount(); });
+  playerSel.addEventListener('change',   (e) => { _filter.playerId   = e.target.value; paint(); });
+  yearSel.addEventListener('change',     (e) => { _filter.year       = e.target.value; paint(); });
+  quincenaSel.addEventListener('change', (e) => { _filter.quincena   = e.target.value; paint(); });
+  statusSel.addEventListener('change',   (e) => { _filter.status     = e.target.value; paint(); });
   clear.addEventListener('click', () => {
     _filter = { playerId: '', year: '', quincena: '', status: '' };
     playerSel.value = yearSel.value = quincenaSel.value = statusSel.value = '';
     paint();
-    updateFilterCount();
   });
 
-  function updateFilterCount() {
-    const n = Object.values(_filter).filter(Boolean).length;
-    filterCount.textContent = `${n} ${n === 1 ? 'activo' : 'activos'}`;
-  }
-  updateFilterCount();
-
   root.querySelector('#btn-new-payment').addEventListener('click', () => openPaymentForm(null));
-  root.querySelector('#btn-clabe').addEventListener('click', () => openClabeModal());
   root.querySelector('#btn-export-csv').addEventListener('click', () => exportData('csv'));
   root.querySelector('#btn-export-pdf').addEventListener('click', () => exportData('pdf'));
 
@@ -123,30 +105,24 @@ export function renderPayments(root) {
 
     if (filtered.length === 0) {
       wrap.innerHTML = `<div class="empty-state">
-          <div class="empty-state-icon mx-auto">${ICON.cash}</div>
-          <p class="font-display font-extrabold text-xl uppercase">Sin pagos registrados</p>
-          <p class="muted text-sm mt-1">Crea el primer pago con el botón "Nuevo pago".</p>
+          <div class="empty-state-icon">${ICON.cash}</div>
+          <p class="font-semibold">Sin pagos registrados</p>
+          <p class="text-sm text-zinc-500 mt-1">Crea el primer pago con el botón "Nuevo pago".</p>
         </div>`;
       return;
     }
 
     wrap.innerHTML = `
-      <!-- Mobile: cards -->
-      <div class="md:hidden flex flex-col gap-3">
-        ${filtered.map(rowCard).join('')}
-      </div>
-
-      <!-- Desktop: tabla -->
-      <div class="hidden md:block table-wrap">
+      <div class="table-wrap overflow-x-auto">
         <table class="table">
           <thead>
             <tr>
               <th>Jugador</th>
-              <th>Categoría</th>
+              <th class="hidden md:table-cell">Categoría</th>
               <th>Período</th>
-              <th>Monto</th>
+              <th class="text-right">Monto</th>
               <th>Estado</th>
-              <th>Pagado</th>
+              <th class="hidden lg:table-cell">Pagado</th>
               <th class="text-right">Acciones</th>
             </tr>
           </thead>
@@ -179,25 +155,26 @@ function rowHTML(p) {
   const playerCat  = player?.category || '—';
   const isPending  = p.status === 'pending';
   const level      = isPending && player ? classifyMora(player) : null;
-  const statusBadge = isPending
-    ? `<span class="badge ${level === 'mora5' ? 'badge-mora' : level === 'mora3' ? 'badge-mora' : level === 'mora1' ? 'badge-pending' : 'badge-info'}">${escapeHTML(moraLabel(level || 'recordatorio'))}</span>`
-    : `<span class="badge badge-paid">${ICON.check}<span>Pagado</span></span>`;
+  const statusDot  = isPending
+    ? (level === 'mora5' || level === 'mora3' ? 'dot-danger' : 'dot-warning')
+    : 'dot-success';
+  const statusText = isPending ? moraLabel(level || 'recordatorio') : 'Pagado';
 
   return `
     <tr>
       <td>
         <div class="flex items-center gap-2.5 min-w-0">
-          <div class="player-avatar shrink-0" style="${avatarGradient(playerName)}">${escapeHTML(initialsOf(playerName))}</div>
-          <span class="font-bold truncate">${escapeHTML(playerName)}</span>
+          <div class="avatar size-sm shrink-0" style="${avatarGradient(playerName)}">${escapeHTML(initialsOf(playerName))}</div>
+          <span class="font-medium truncate">${escapeHTML(playerName)}</span>
         </div>
       </td>
-      <td><span class="tag">${escapeHTML(playerCat)}</span></td>
-      <td class="tabular">${escapeHTML(quincenaLabel(p.year, p.quincena))}</td>
-      <td class="font-bold tabular">${formatMXN(p.amount)}</td>
-      <td>${statusBadge}</td>
-      <td class="text-xs muted tabular">${p.paidDate ? formatDate(p.paidDate) : '—'}</td>
+      <td class="hidden md:table-cell text-zinc-600">${escapeHTML(playerCat)}</td>
+      <td class="text-zinc-600 tabular-nums">${escapeHTML(quincenaLabel(p.year, p.quincena))}</td>
+      <td class="text-right font-semibold tabular-nums">${formatMXN(p.amount)}</td>
+      <td><span class="status"><span class="status-dot ${statusDot}"></span><span>${escapeHTML(statusText)}</span></span></td>
+      <td class="hidden lg:table-cell text-zinc-500 tabular-nums">${p.paidDate ? escapeHTML(formatDate(p.paidDate)) : '—'}</td>
       <td class="text-right">
-        <div class="inline-flex gap-1">
+        <div class="inline-flex gap-0.5">
           ${isPending ? `
             <button data-copy="${p.id}" type="button" class="icon-btn" aria-label="Copiar mensaje de pago">${ICON.copy}</button>
             <button data-pay="${p.id}" type="button" class="btn btn-primary btn-sm">${ICON.check}<span>Pagado</span></button>
@@ -207,49 +184,6 @@ function rowHTML(p) {
         </div>
       </td>
     </tr>
-  `;
-}
-
-function rowCard(p) {
-  const player = state.players.find((pl) => pl.id === p.playerId);
-  const playerName = player?.name || '—';
-  const playerCat  = player?.category || '—';
-  const isPending  = p.status === 'pending';
-  const level      = isPending && player ? classifyMora(player) : null;
-  const statusBadge = isPending
-    ? `<span class="badge ${level === 'mora5' ? 'badge-mora' : level === 'mora3' ? 'badge-mora' : level === 'mora1' ? 'badge-pending' : 'badge-info'}">${escapeHTML(moraLabel(level || 'recordatorio'))}</span>`
-    : `<span class="badge badge-paid">${ICON.check}<span>Pagado</span></span>`;
-
-  return `
-    <article class="pay-card">
-      <div class="pay-card-row">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="player-avatar" style="${avatarGradient(playerName)}">${escapeHTML(initialsOf(playerName))}</div>
-          <div class="min-w-0">
-            <p class="pay-card-name truncate">${escapeHTML(playerName)}</p>
-            <p class="player-meta truncate">${escapeHTML(playerCat)}</p>
-          </div>
-        </div>
-        <div class="text-right">
-          <p class="font-display font-extrabold text-lg tabular-nums leading-none">${formatMXN(p.amount)}</p>
-          <p class="text-[10px] uppercase tracking-widest font-bold text-ink-500 mt-1">${escapeHTML(quincenaLabel(p.year, p.quincena))}</p>
-        </div>
-      </div>
-      <div class="pay-card-row">
-        <div class="flex flex-wrap items-center gap-2">
-          ${statusBadge}
-          ${p.paidDate ? `<span class="tag">${escapeHTML(formatDate(p.paidDate))}</span>` : ''}
-        </div>
-        <div class="flex gap-1">
-          ${isPending ? `
-            <button data-copy="${p.id}" type="button" class="icon-btn" aria-label="Copiar mensaje">${ICON.copy}</button>
-            <button data-pay="${p.id}" type="button" class="btn btn-primary btn-sm">${ICON.check}<span>Pagado</span></button>
-          ` : ''}
-          <button data-edit="${p.id}" type="button" class="icon-btn" aria-label="Editar pago">${ICON.edit}</button>
-          <button data-del="${p.id}" type="button" class="icon-btn icon-btn-danger" aria-label="Eliminar pago">${ICON.trash}</button>
-        </div>
-      </div>
-    </article>
   `;
 }
 
@@ -276,7 +210,7 @@ async function onDelete(id) {
   const ok = await confirmModal({
     title: 'Eliminar pago',
     message: '¿Eliminar este pago? Esta acción no se puede deshacer.',
-    confirmText: 'Sí, eliminar',
+    confirmText: 'Eliminar',
     danger: true,
   });
   if (!ok) return;
@@ -312,7 +246,7 @@ function openPaymentForm(id) {
   const current = getCurrentQuincena();
 
   const body = `
-    <form id="form-payment" class="grid grid-cols-1 sm:grid-cols-2 gap-4" novalidate>
+    <form id="form-payment" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5" novalidate>
       <div class="sm:col-span-2">
         <label class="label" for="py-player">Jugador *</label>
         <select id="py-player" name="playerId" required class="select">
@@ -330,7 +264,6 @@ function openPaymentForm(id) {
           <option value="1" ${(editing?.quincena ?? current.quincena) === 1 ? 'selected' : ''}>Q1 (1-15)</option>
           <option value="2" ${(editing?.quincena ?? current.quincena) === 2 ? 'selected' : ''}>Q2 (16-31)</option>
         </select>
-        <p class="form-hint">Se autodefine según el día de pago del jugador.</p>
       </div>
       <div>
         <label class="label" for="py-amount">Monto (MXN) *</label>
@@ -354,10 +287,10 @@ function openPaymentForm(id) {
 
   const footer = `
     <button data-cancel type="button" class="btn btn-secondary">Cancelar</button>
-    <button data-save type="button" class="btn btn-primary">${editing ? 'Guardar cambios' : 'Crear pago'}</button>
+    <button data-save type="button" class="btn btn-primary">${editing ? 'Guardar' : 'Crear pago'}</button>
   `;
 
-  const m = openModal({ title: editing ? 'Editar pago' : 'Nuevo pago', body, footer, size: 'lg' });
+  const m = openModal({ title: editing ? 'Editar pago' : 'Nuevo pago', body, footer, size: 'md' });
 
   const form      = m.panel.querySelector('#form-payment');
   const playerSel = form.querySelector('[name=playerId]');
@@ -372,7 +305,7 @@ function openPaymentForm(id) {
       if (!amountIn.value) amountIn.value = amt;
       const expectedQ = Number(pl.paymentDay) <= 15 ? 1 : 2;
       quincenaSel.value = String(expectedQ);
-      hint.textContent = `Monto: ${formatMXN(amt)} · Día ${pl.paymentDay} → Q${expectedQ}`;
+      hint.textContent = `${formatMXN(amt)} · día ${pl.paymentDay} → Q${expectedQ}`;
     } else {
       hint.textContent = 'Selecciona jugador para autocompletar';
     }
@@ -385,15 +318,9 @@ function openPaymentForm(id) {
     const errEl = m.panel.querySelector('#py-error');
     errEl.hidden = true;
 
-    if (!playerSel.value) {
-      showErr('Selecciona un jugador'); playerSel.focus(); return;
-    }
-    if (!form.year.value || Number(form.year.value) < 2020) {
-      showErr('Año inválido'); form.year.focus(); return;
-    }
-    if (!amountIn.value || Number(amountIn.value) < 0) {
-      showErr('Monto inválido'); amountIn.focus(); return;
-    }
+    if (!playerSel.value) { showErr('Selecciona un jugador'); playerSel.focus(); return; }
+    if (!form.year.value || Number(form.year.value) < 2020) { showErr('Año inválido'); form.year.focus(); return; }
+    if (!amountIn.value || Number(amountIn.value) < 0) { showErr('Monto inválido'); amountIn.focus(); return; }
 
     const data = {
       playerId: playerSel.value,
@@ -421,34 +348,6 @@ function openPaymentForm(id) {
       errEl.textContent = msg;
       errEl.hidden = false;
     }
-  });
-}
-
-// === MODAL CLABE ===
-
-function openClabeModal() {
-  const body = `
-    <div class="flex flex-col gap-4 items-center">
-      <img src="assets/clabe.png" alt="Datos de transferencia" class="w-full max-w-md rounded-lg border border-ink-200" />
-      <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full text-sm">
-        <div class="card card-pad sm:col-span-1"><dt class="text-[10px] uppercase tracking-widest font-bold muted">Banco</dt><dd class="font-bold">${escapeHTML(BANK_INFO.banco)}</dd></div>
-        <div class="card card-pad sm:col-span-2"><dt class="text-[10px] uppercase tracking-widest font-bold muted">Titular</dt><dd class="font-bold">${escapeHTML(BANK_INFO.titular)}</dd></div>
-        <div class="card card-pad sm:col-span-3"><dt class="text-[10px] uppercase tracking-widest font-bold muted">CLABE Interbancaria</dt>
-          <dd class="font-mono font-bold tracking-wide">${escapeHTML(BANK_INFO.clabe)}</dd>
-        </div>
-        <div class="card card-pad sm:col-span-3"><dt class="text-[10px] uppercase tracking-widest font-bold muted">Concepto</dt><dd class="font-bold">${escapeHTML(BANK_INFO.concepto)}</dd></div>
-      </dl>
-    </div>
-  `;
-  const footer = `
-    <button data-copy-clabe type="button" class="btn btn-secondary">${ICON.copy}<span>Copiar CLABE</span></button>
-    <button data-close type="button" class="btn btn-primary">Cerrar</button>
-  `;
-  const m = openModal({ title: 'Datos de transferencia', body, footer, size: 'lg' });
-  m.panel.querySelector('[data-close]').addEventListener('click', m.close);
-  m.panel.querySelector('[data-copy-clabe]').addEventListener('click', async () => {
-    await copyToClipboard(BANK_INFO.clabe);
-    toast('CLABE copiada', 'success');
   });
 }
 
