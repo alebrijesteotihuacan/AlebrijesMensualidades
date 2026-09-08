@@ -23,25 +23,51 @@ export function quincenaRange(year, quincena) {
 }
 
 /**
- * Calcula los días de mora de un jugador a partir de su paymentDay y la fecha.
- * Regla: si hoy es el día de pago → mora = 0. Desde el día siguiente → mora = 1+.
+ * Calcula los días de mora de un jugador a partir de su paymentDay (1-31) y la fecha.
+ * Regla:
+ *  - Si el día actual >= paymentDay del mes actual → mora = (hoy - paymentDay).
+ *  - Si el día actual < paymentDay del mes actual → mora = (días del mes anterior - paymentDay) + hoy.
+ *  - Si el jugador está exento (exempt: true) → mora = 0.
+ *
  * Sin días de gracia.
  *
- * @param {{paymentDay: 1|15}} player
+ * @param {{paymentDay:number, exempt?:boolean}} player
  * @param {Date} today
  * @returns {number} días de mora (>= 0)
  */
 export function daysMora(player, today = new Date()) {
-  if (!player || ![1, 15].includes(player.paymentDay)) return 0;
-  const day = today.getDate();
-  // Mora solo aplica cuando ya pasó el día de pago del mes actual.
-  if (day < player.paymentDay) return 0;
-  return day - player.paymentDay;
+  if (!player || !player.paymentDay) return 0;
+  if (player.exempt) return 0;
+  const pd = Number(player.paymentDay);
+  if (!Number.isFinite(pd) || pd < 1 || pd > 31) return 0;
+
+  const day   = today.getDate();
+  const month = today.getMonth();
+  const year  = today.getFullYear();
+
+  let lastDate;
+  if (day >= pd) {
+    lastDate = new Date(year, month, pd);
+  } else {
+    // Buscar el día 'pd' del mes anterior
+    const prevMonth = new Date(year, month - 1, pd);
+    lastDate = prevMonth;
+  }
+
+  const diffMs = today.getTime() - lastDate.getTime();
+  return Math.max(0, Math.floor(diffMs / 86_400_000));
 }
 
 /** Devuelve true si el jugador está en mora (>0). */
 export function isMora(player, today = new Date()) {
   return daysMora(player, today) > 0;
+}
+
+/** Devuelve la quincena (1|2) derivada del día de pago. */
+export function quincenaOfDay(day) {
+  const d = Number(day);
+  if (!Number.isFinite(d)) return 1;
+  return d <= 15 ? 1 : 2;
 }
 
 /** Formato moneda MXN: $1,200.00 */

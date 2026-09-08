@@ -133,18 +133,20 @@ export function renderPlayers(root) {
  *  diasMora: numero
  */
 function playerWithCurrentStatus(p) {
+  // Exentos siempre al día
+  if (p.exempt) return { ...p, status: 'paid', payment: null, diasMora: 0 };
   const cur = getCurrentQuincena();
+  const quincena = cur.quincena; // 1|2 derivado del día actual
   const payment = state.payments.find((pay) =>
     pay.playerId === p.id &&
     Number(pay.year) === cur.year &&
-    Number(pay.quincena) === cur.quincena
+    Number(pay.quincena) === quincena
   );
   const dias = daysMora(p);
   let status = 'paid';
   if (payment?.status === 'pending') {
     status = dias > 0 ? 'mora' : 'pending';
   } else if (!payment) {
-    // Sin pago del periodo actual: si paso el paymentDay, mora
     if (dias > 0) status = 'mora';
     else status = 'pending';
   }
@@ -261,10 +263,17 @@ function openPlayerForm(id) {
       </div>
       <div>
         <label class="label">Día de pago *</label>
-        <select name="paymentDay" required class="select">
-          <option value="1"  ${editing?.paymentDay === 1  ? 'selected' : ''}>Día 1 (Q1)</option>
-          <option value="15" ${editing?.paymentDay === 15 ? 'selected' : ''}>Día 15 (Q2)</option>
-        </select>
+        <input name="paymentDay" type="number" min="1" max="31" required class="input" value="${editing?.paymentDay ?? 1}" />
+        <p class="text-xs muted mt-1">Cualquier día del mes (1-31).</p>
+      </div>
+      <div>
+        <label class="label">Monto personalizado (MXN)</label>
+        <input name="customAmount" type="number" min="0" step="50" class="input" value="${editing?.customAmount ?? ''}" placeholder="Opcional" />
+        <p class="text-xs muted mt-1">Si se define, reemplaza el monto de la categoría.</p>
+      </div>
+      <div class="sm:col-span-2 flex items-center gap-2">
+        <input id="exempt-check" type="checkbox" name="exempt" class="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500" ${editing?.exempt ? 'checked' : ''} />
+        <label for="exempt-check" class="text-sm font-medium text-ink-900">Jugador becado / exento (no genera pagos)</label>
       </div>
       <div class="sm:col-span-2">
         <label class="label">Notas</label>
@@ -285,12 +294,21 @@ function openPlayerForm(id) {
     const f = m.panel.querySelector('#form-player');
     if (!f.reportValidity()) return;
 
+    const pd = Number(f.paymentDay.value);
+    if (!Number.isFinite(pd) || pd < 1 || pd > 31) {
+      toast('El día de pago debe estar entre 1 y 31', 'error');
+      return;
+    }
+
+    const customRaw = f.customAmount.value.trim();
     const data = {
       name: f.name.value.trim(),
       category: f.category.value,
       phone: f.phone.value.trim(),
       notes: f.notes.value.trim(),
-      paymentDay: Number(f.paymentDay.value),
+      paymentDay: pd,
+      customAmount: customRaw === '' ? null : Number(customRaw),
+      exempt: f.exempt.checked,
     };
 
     try {

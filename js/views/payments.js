@@ -271,6 +271,7 @@ function openPaymentForm(id) {
           <option value="1" ${(editing?.quincena ?? current.quincena) === 1 ? 'selected' : ''}>Q1 (1-15)</option>
           <option value="2" ${(editing?.quincena ?? current.quincena) === 2 ? 'selected' : ''}>Q2 (16-31)</option>
         </select>
+        <p class="text-xs muted mt-1">Se autodefine según el día de pago del jugador.</p>
       </div>
       <div>
         <label class="label">Monto (MXN) *</label>
@@ -301,20 +302,24 @@ function openPaymentForm(id) {
   const form      = m.panel.querySelector('#form-payment');
   const playerSel = form.querySelector('[name=playerId]');
   const amountIn  = form.querySelector('[name=amount]');
+  const quincenaSel = form.querySelector('[name=quincena]');
   const hint      = m.panel.querySelector('#amount-hint');
 
-  function syncAmount() {
+  function syncFromPlayer() {
     const pl = state.players.find((x) => x.id === playerSel.value);
     if (pl) {
       const amt = amountForPlayer(pl);
       if (!amountIn.value) amountIn.value = amt;
-      hint.textContent = `Monto de la categoría: ${formatMXN(amt)}`;
+      // Autodefine quincena segun paymentDay (1-15 -> Q1, 16-31 -> Q2)
+      const expectedQ = Number(pl.paymentDay) <= 15 ? 1 : 2;
+      quincenaSel.value = String(expectedQ);
+      hint.textContent = `Monto: ${formatMXN(amt)} · Día ${pl.paymentDay} → Q${expectedQ}`;
     } else {
       hint.textContent = 'Selecciona jugador para autocompletar';
     }
   }
-  playerSel.addEventListener('change', () => { amountIn.value = ''; syncAmount(); });
-  syncAmount();
+  playerSel.addEventListener('change', () => { amountIn.value = ''; syncFromPlayer(); });
+  syncFromPlayer();
 
   m.panel.querySelector('[data-cancel]').addEventListener('click', m.close);
   m.panel.querySelector('[data-save]').addEventListener('click', async () => {
@@ -322,7 +327,7 @@ function openPaymentForm(id) {
     const data = {
       playerId: playerSel.value,
       year:      Number(form.year.value),
-      quincena:  Number(form.quincena.value),
+      quincena:  Number(quincenaSel.value),
       amount:    Number(amountIn.value),
       status:    form.status.value,
       paidDate:  form.paidDate.value || null,

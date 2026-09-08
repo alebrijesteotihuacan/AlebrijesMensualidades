@@ -174,8 +174,12 @@ export function findCategoryByName(name) {
   return state.categories.find((c) => c.name === name) || null;
 }
 
-/** Devuelve el monto actual de la categoría del jugador. */
+/** Devuelve el monto del jugador: prioriza customAmount, luego la categoría. */
 export function amountForPlayer(player) {
+  if (player?.customAmount != null && player.customAmount !== '') {
+    const n = Number(player.customAmount);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
   const cat = findCategoryByName(player?.category);
   return Number(cat?.amount ?? 0);
 }
