@@ -73,7 +73,7 @@ export function renderDashboard(root) {
 
       <!-- CATEGORIAS -->
       <div class="card card-pad">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between mb-4">
           <div>
             <p class="section-eyebrow">Por categoría</p>
             <h2 class="text-base font-semibold mt-1">Cobranza del período</h2>
@@ -82,7 +82,7 @@ export function renderDashboard(root) {
         </div>
         ${stats.byCategory.length === 0
           ? `<p class="text-sm text-zinc-500 py-4 text-center">Aún no hay categorías.</p>`
-          : `<div class="flex flex-col">${stats.byCategory.map(categoryRow).join('')}</div>`
+          : categoryBarsChart(stats.byCategory)
         }
       </div>
     </section>
@@ -115,23 +115,110 @@ function statBlock(label, value, sub, tone) {
   `;
 }
 
-function categoryRow(c) {
-  const paid    = c.paid;
-  const pending = c.pending;
-  const total   = paid + pending;
-  const paidPct = total ? Math.round((paid / total) * 100) : 0;
+function categoryBarsChart(cats) {
+  // Filtrar categorías sin pagos (para que la gráfica sea significativa)
+  const data = cats.filter((c) => (c.paid + c.pending) > 0);
+  if (data.length === 0) {
+    return `<p class="text-sm text-zinc-500 py-4 text-center">Aún no hay pagos en este período.</p>`;
+  }
+
+  // Encontrar el máximo total entre categorías (para escalar)
+  const maxTotal = Math.max(...data.map((c) => c.paid + c.pending), 1);
+  const niceMax = niceCeil(maxTotal);
+
+  const W = 560, H = 220;
+  const padL = 56, padR = 12, padT = 18, padB = 52;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = data.length;
+  const stepX = plotW / n;
+  const barW = Math.min(46, stepX * 0.55);
+  const gridSteps = 4;
+
+  // Grid horizontal + labels Y
+  const gridLines = [];
+  const yLabels = [];
+  for (let i = 0; i <= gridSteps; i++) {
+    const v = (niceMax / gridSteps) * i;
+    const y = padT + plotH - (v / niceMax) * plotH;
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#F4F4F5" stroke-width="1" />`);
+    yLabels.push(`<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(compactMoney(v))}</text>`);
+  }
+
+  // Barras verticales con segmentos pagado (oscuro) + pendiente (claro) apilados
+  const bars = data.map((c, i) => {
+    const total = c.paid + c.pending;
+    const paidPct = total ? c.paid / total : 0;
+    const x = padL + stepX * i + (stepX - barW) / 2;
+    const totalH = (total / niceMax) * plotH;
+    const paidH = totalH * paidPct;
+    const pendingH = totalH - paidH;
+    const yBase = padT + plotH;
+    const yPaid = yBase - paidH;
+    const yPending = yPaid - pendingH;
+    const pct = Math.round(paidPct * 100);
+    const pctColor = pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
+
+    return `
+      <g>
+        <rect x="${x}" y="${yPending}" width="${barW}" height="${Math.max(pendingH, 0)}" fill="#E4E4E7" rx="3" />
+        <rect x="${x}" y="${yPaid}" width="${barW}" height="${Math.max(paidH, 1)}" fill="#09090B" rx="3" />
+        <circle cx="${x + barW / 2}" cy="${yPaid - 1}" r="3" fill="${pctColor}" />
+        <title>${escapeHTML(c.name)} · ${pct}% cobrado · ${formatMXN(c.paid)} de ${formatMXN(total)}</title>
+      </g>
+    `;
+  }).join('');
+
+  // Labels X: nombre de categoría (truncado a 12 chars) + jugadores · monto
+  const xLabels = data.map((c, i) => {
+    const x = padL + stepX * i + stepX / 2;
+    const total = c.paid + c.pending;
+    const pct = total ? Math.round((c.paid / total) * 100) : 0;
+    const name = c.name.length > 14 ? c.name.slice(0, 13) + '…' : c.name;
+    return `
+      <g>
+        <text x="${x}" y="${H - padB + 16}" text-anchor="middle" font-size="11" fill="#09090B" font-family="Inter, sans-serif" font-weight="500">${escapeHTML(name)}</text>
+        <text x="${x}" y="${H - padB + 30}" text-anchor="middle" font-size="10" fill="#71717A" font-family="Inter, sans-serif" class="tabular-nums">${pct}% · ${c.count} jug.</text>
+      </g>
+    `;
+  }).join('');
+
   return `
-    <div class="cat-row">
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="cat-name">${escapeHTML(c.name)}</span>
-        <span class="cat-count">${paid}/${total} · ${formatMXN(c.amount)}</span>
-      </div>
-      <div class="progress">
-        <div class="bar-paid"    style="width:${paidPct}%"></div>
-        <div class="bar-pending" style="width:${100 - paidPct}%"></div>
-      </div>
+    <div class="w-full overflow-x-auto">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras vertical: cobranza por categoría" class="w-full h-auto" style="min-width: 420px;">
+        ${gridLines.join('')}
+        ${yLabels.join('')}
+        ${bars}
+        ${xLabels}
+      </svg>
+    </div>
+    <div class="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-zinc-100 text-xs text-zinc-600">
+      <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm bg-zinc-900"></span>Cobrado</span>
+      <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm bg-zinc-200"></span>Pendiente</span>
+      <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>≥70%</span>
+      <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500"></span>40–69%</span>
+      <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span>&lt;40%</span>
     </div>
   `;
+}
+
+// Helpers de formato para la gráfica
+function niceCeil(n) {
+  if (n <= 0) return 1;
+  const exp = Math.floor(Math.log10(n));
+  const f = n / Math.pow(10, exp);
+  let nice;
+  if (f <= 1) nice = 1;
+  else if (f <= 2) nice = 2;
+  else if (f <= 5) nice = 5;
+  else nice = 10;
+  return nice * Math.pow(10, exp);
+}
+
+function compactMoney(n) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}k`;
+  return `$${n.toFixed(0)}`;
 }
 
 function morosoRow(p) {

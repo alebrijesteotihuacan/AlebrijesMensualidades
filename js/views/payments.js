@@ -245,6 +245,15 @@ function openPaymentForm(id) {
   const editing = id ? state.payments.find((p) => p.id === id) : null;
   const current = getCurrentQuincena();
 
+  const initialDay = editing?.paidDate
+    ? Number(editing.paidDate.slice(8, 10))
+    : '';
+  const months = [
+    'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+    'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+  ];
+  const initialMonth = editing?.month ?? current.month;
+
   const body = `
     <form id="form-payment" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5" novalidate>
       <div class="sm:col-span-2">
@@ -255,8 +264,10 @@ function openPaymentForm(id) {
         </select>
       </div>
       <div>
-        <label class="label" for="py-year">Año *</label>
-        <input id="py-year" name="year" type="number" min="2020" max="2099" required inputmode="numeric" class="input tabular" value="${editing?.year ?? current.year}" />
+        <label class="label" for="py-month">Mes *</label>
+        <select id="py-month" name="month" required class="select">
+          ${months.map((name, i) => `<option value="${i + 1}" ${initialMonth === i + 1 ? 'selected' : ''}>${name}</option>`).join('')}
+        </select>
       </div>
       <div>
         <label class="label" for="py-q">Quincena *</label>
@@ -264,22 +275,20 @@ function openPaymentForm(id) {
           <option value="1" ${(editing?.quincena ?? current.quincena) === 1 ? 'selected' : ''}>Q1 (1-15)</option>
           <option value="2" ${(editing?.quincena ?? current.quincena) === 2 ? 'selected' : ''}>Q2 (16-31)</option>
         </select>
+        <p class="form-hint">Se autodefine según el día de pago del jugador.</p>
       </div>
       <div>
         <label class="label" for="py-amount">Monto (MXN) *</label>
         <input id="py-amount" name="amount" type="number" min="0" step="50" required inputmode="numeric" class="input tabular" value="${editing?.amount ?? ''}" />
         <p class="form-hint" id="amount-hint">Selecciona jugador para autocompletar</p>
       </div>
-      <div>
-        <label class="label" for="py-status">Estado *</label>
-        <select id="py-status" name="status" required class="select">
-          <option value="pending" ${editing?.status !== 'paid' ? 'selected' : ''}>Pendiente</option>
-          <option value="paid"    ${editing?.status === 'paid' ? 'selected' : ''}>Pagado</option>
-        </select>
-      </div>
       <div class="sm:col-span-2">
-        <label class="label" for="py-paid">Fecha de pago</label>
-        <input id="py-paid" name="paidDate" type="date" class="input tabular" value="${editing?.paidDate ?? ''}" />
+        <label class="label" for="py-paid-day">Día de pago</label>
+        <div class="flex items-center gap-2">
+          <input id="py-paid-day" name="paidDay" type="number" min="1" max="31" inputmode="numeric" class="input tabular" value="${initialDay}" placeholder="Día del mes" />
+          <button data-today type="button" class="btn btn-secondary shrink-0">Hoy</button>
+        </div>
+        <p class="form-hint" id="paid-hint">Si lo dejas vacío, el pago queda pendiente. Si ingresas un día, queda pagado.</p>
       </div>
       <p id="py-error" class="sm:col-span-2 form-error" hidden></p>
     </form>
@@ -292,11 +301,14 @@ function openPaymentForm(id) {
 
   const m = openModal({ title: editing ? 'Editar pago' : 'Nuevo pago', body, footer, size: 'md' });
 
-  const form      = m.panel.querySelector('#form-payment');
-  const playerSel = form.querySelector('[name=playerId]');
-  const amountIn  = form.querySelector('[name=amount]');
+  const form        = m.panel.querySelector('#form-payment');
+  const playerSel   = form.querySelector('[name=playerId]');
+  const amountIn    = form.querySelector('[name=amount]');
+  const monthSel    = form.querySelector('[name=month]');
   const quincenaSel = form.querySelector('[name=quincena]');
-  const hint      = m.panel.querySelector('#amount-hint');
+  const dayIn       = form.querySelector('[name=paidDay]');
+  const hint        = m.panel.querySelector('#amount-hint');
+  const paidHint    = m.panel.querySelector('#paid-hint');
 
   function syncFromPlayer() {
     const pl = state.players.find((x) => x.id === playerSel.value);
@@ -313,22 +325,61 @@ function openPaymentForm(id) {
   playerSel.addEventListener('change', () => { amountIn.value = ''; syncFromPlayer(); });
   syncFromPlayer();
 
+  // Botón "Hoy": pone el día actual (del mes seleccionado)
+  m.panel.querySelector('[data-today]').addEventListener('click', () => {
+    const today = new Date();
+    // Si el mes seleccionado es el actual, usa día de hoy.
+    // Si no, pone el último día del mes seleccionado para que sea válido.
+    const selMonth = Number(monthSel.value);
+    if (selMonth === today.getMonth() + 1) {
+      dayIn.value = today.getDate();
+    } else {
+      const lastDay = new Date(today.getFullYear(), selMonth, 0).getDate();
+      dayIn.value = lastDay;
+    }
+  });
+
+  // Hint dinámico según haya día o no
+  function syncPaidHint() {
+    if (dayIn.value) {
+      paidHint.textContent = 'Pagado: el día seleccionado del mes elegido.';
+    } else {
+      paidHint.textContent = 'Pendiente: deja el día vacío.';
+    }
+  }
+  dayIn.addEventListener('input', syncPaidHint);
+  syncPaidHint();
+
   m.panel.querySelector('[data-cancel]').addEventListener('click', m.close);
   m.panel.querySelector('[data-save]').addEventListener('click', async () => {
     const errEl = m.panel.querySelector('#py-error');
     errEl.hidden = true;
 
     if (!playerSel.value) { showErr('Selecciona un jugador'); playerSel.focus(); return; }
-    if (!form.year.value || Number(form.year.value) < 2020) { showErr('Año inválido'); form.year.focus(); return; }
     if (!amountIn.value || Number(amountIn.value) < 0) { showErr('Monto inválido'); amountIn.focus(); return; }
+
+    const dayVal = dayIn.value.trim();
+    let paidDate = null;
+    if (dayVal !== '') {
+      const d = Number(dayVal);
+      if (!Number.isFinite(d) || d < 1 || d > 31) {
+        showErr('El día debe estar entre 1 y 31'); dayIn.focus(); return;
+      }
+      const year = new Date().getFullYear();
+      const month = Number(monthSel.value);
+      const lastDay = new Date(year, month, 0).getDate();
+      const safeDay = Math.min(d, lastDay);
+      paidDate = `${year}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+    }
 
     const data = {
       playerId: playerSel.value,
-      year:      Number(form.year.value),
+      year:      new Date().getFullYear(),
+      month:     Number(monthSel.value),
       quincena:  Number(quincenaSel.value),
       amount:    Number(amountIn.value),
-      status:    form.status.value,
-      paidDate:  form.paidDate.value || null,
+      status:    paidDate ? 'paid' : 'pending',
+      paidDate,
     };
     try {
       if (editing) {
