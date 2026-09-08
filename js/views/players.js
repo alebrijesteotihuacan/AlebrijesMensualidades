@@ -4,7 +4,7 @@
 import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
 import { players, payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
-import { daysMora, formatMXN, getCurrentQuincena } from '../utils/dates.js';
+import { daysMora, formatMXN, formatDate, getCurrentQuincena, monthName } from '../utils/dates.js';
 
 let _filter = { category: '', status: '', dayRange: '', search: '' };
 
@@ -231,6 +231,24 @@ function initialsOf(name) {
 
 // === DRAWER DE JUGADOR ===
 
+function paymentRow(pay) {
+  const mes = monthName(Number(pay.month) - 1);
+  const periodo = `${mes} ${pay.year} · Q${pay.quincena}`;
+  const isPaid = pay.status === 'paid';
+  const dot = isPaid ? 'dot-success' : 'dot-warning';
+  const statusText = isPaid ? 'Pagado' : 'Pendiente';
+  return `
+    <div class="flex items-center gap-3 px-3 py-2.5">
+      <span class="status-dot ${dot}"></span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium truncate">${escapeHTML(periodo)}</p>
+        <p class="text-xs text-zinc-500">${isPaid && pay.paidDate ? escapeHTML(formatDate(pay.paidDate)) : '—'}</p>
+      </div>
+      <span class="text-sm font-semibold tabular-nums">${escapeHTML(formatMXN(pay.amount))}</span>
+    </div>
+  `;
+}
+
 function openPlayerDrawer(id) {
   const p = state.players.find((x) => x.id === id);
   if (!p) return;
@@ -282,6 +300,23 @@ function openPlayerDrawer(id) {
         <p class="text-[10px] uppercase tracking-wider font-medium text-zinc-500 mb-1.5">Notas</p>
         <p class="text-sm text-zinc-700 bg-zinc-50 border border-zinc-100 rounded-md px-3 py-2 leading-relaxed">${escapeHTML(p.notes)}</p>
       </div>` : ''}
+
+    ${(() => {
+      const pays = state.payments
+        .filter((pay) => pay.playerId === p.id)
+        .sort((a, b) => (Number(b.year) - Number(a.year)) || (Number(b.quincena) - Number(a.quincena)));
+      return `
+        <div class="mt-5">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-[10px] uppercase tracking-wider font-medium text-zinc-500">Historial de pagos</p>
+            <span class="text-xs text-zinc-500 tabular-nums">${pays.length}</span>
+          </div>
+          ${pays.length === 0
+            ? `<p class="text-sm text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-md px-3 py-3 text-center">Sin pagos registrados.</p>`
+            : `<div class="border border-zinc-100 rounded-md divide-y divide-zinc-100">${pays.map(paymentRow).join('')}</div>`}
+        </div>
+      `;
+    })()}
   `;
 
   const footer = `
