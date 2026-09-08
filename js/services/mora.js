@@ -27,7 +27,7 @@ export function moraLabel(level) {
     case 'recordatorio': return 'Recordatorio';
     case 'mora1':        return 'Mora 1 día';
     case 'mora3':        return 'Mora 3 días';
-    case 'mora5':        return 'Ya no podrá entrenar';
+    case 'mora5':        return 'No podrá entrenar';
     default:             return '—';
   }
 }
