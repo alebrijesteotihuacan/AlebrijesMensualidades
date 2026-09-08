@@ -112,6 +112,12 @@ export function monthName(monthIdx) {
   return MONTHS[monthIdx] ?? '';
 }
 
+/** Nombre corto del mes (3 letras) */
+export function monthShort(monthIdx) {
+  const name = monthName(monthIdx);
+  return name ? name.slice(0, 3) : '';
+}
+
 /** "Agosto 2026" */
 export function monthYearLabel(year, monthIdx) {
   return `${monthName(monthIdx)} ${year}`;

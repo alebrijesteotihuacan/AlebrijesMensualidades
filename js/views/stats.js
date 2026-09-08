@@ -1,9 +1,9 @@
 // js/views/stats.js
 // Vista Estadísticas: filtros por quincena/mes/año + KPIs del período
-// + comparación con período anterior + tendencia mensual.
+// + comparación con período anterior + gráficas de barras y líneas.
 
-import { state, escapeHTML, ICON } from '../app.js';
-import { formatMXN, getCurrentQuincena, monthName } from '../utils/dates.js';
+import { state, escapeHTML } from '../app.js';
+import { formatMXN, getCurrentQuincena, monthName, monthShort } from '../utils/dates.js';
 
 let _filter = null; // { year, month ('all'|1..12), quincena (''|1|2) }
 
@@ -12,7 +12,6 @@ export function renderStats(root) {
   if (!_filter) {
     _filter = { year: current.year, month: String(current.month), quincena: '' };
   } else {
-    // Sincronizar año si quedó muy viejo
     const years = availableYears();
     if (!years.includes(_filter.year)) _filter.year = current.year;
   }
@@ -21,11 +20,10 @@ export function renderStats(root) {
 }
 
 function paint(root) {
-  const years = availableYears();
   const stats = computeStats(_filter);
   const prev  = computePrevious(_filter);
-
-  const trend = computeTrend(_filter.year);
+  const bars  = computeBarData(_filter);     // 12 meses: recaudación
+  const lines = computeLineData(_filter);    // 12 meses: % cobrado
   const byCategory = computeByCategory(_filter);
 
   root.innerHTML = `
@@ -44,7 +42,7 @@ function paint(root) {
           <div>
             <label class="label" for="s-year">Año</label>
             <select id="s-year" class="select">
-              ${years.map((y) => `<option value="${y}" ${_filter.year === y ? 'selected' : ''}>${y}</option>`).join('')}
+              ${availableYears().map((y) => `<option value="${y}" ${_filter.year === y ? 'selected' : ''}>${y}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -75,10 +73,10 @@ function paint(root) {
           <span class="status"><span class="status-dot dot-neutral"></span><span>${stats.totalPagos} pagos</span></span>
         </div>
         <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-100">
-          ${statBlock('Recaudado',  formatMXN(stats.recaudado),  `${stats.cobradoPct}% cobrado`, 'success')}
-          ${statBlock('Pendiente',  formatMXN(stats.pendiente),  `${stats.pendientePagos} pagos`, 'warning')}
-          ${statBlock('Cobrado',    `${stats.cobradoPct}%`,     `${stats.cobradoPagos} de ${stats.totalPagos}`, stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger')}
-          ${statBlock('Jugadores',  stats.jugadoresUnicos,       `con al menos un pago`)}
+          ${statBlock('Recaudado', formatMXN(stats.recaudado), `${stats.cobradoPct}% cobrado`, 'success')}
+          ${statBlock('Pendiente', formatMXN(stats.pendiente), `${stats.pendientePagos} pagos`, 'warning')}
+          ${statBlock('Cobrado',   `${stats.cobradoPct}%`,    `${stats.cobradoPagos} de ${stats.totalPagos}`, stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger')}
+          ${statBlock('Jugadores', stats.jugadoresUnicos,      `con al menos un pago`)}
         </div>
       </div>
 
@@ -91,25 +89,34 @@ function paint(root) {
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          ${compareBlock('Recaudado',  formatMXN(stats.recaudado),  formatMXN(prev.recaudado),  deltaPct(stats.recaudado, prev.recaudado))}
-          ${compareBlock('Pendiente',  formatMXN(stats.pendiente),  formatMXN(prev.pendiente),  deltaPct(stats.pendiente, prev.pendiente))}
-          ${compareBlock('Cobrado %',  `${stats.cobradoPct}%`,      `${prev.cobradoPct}%`,      stats.cobradoPct - prev.cobradoPct, true)}
+          ${compareBlock('Recaudado', formatMXN(stats.recaudado), formatMXN(prev.recaudado), deltaPct(stats.recaudado, prev.recaudado))}
+          ${compareBlock('Pendiente', formatMXN(stats.pendiente), formatMXN(prev.pendiente), deltaPct(stats.pendiente, prev.pendiente))}
+          ${compareBlock('Cobrado %', `${stats.cobradoPct}%`,     `${prev.cobradoPct}%`,     stats.cobradoPct - prev.cobradoPct, true)}
         </div>
       </div>
 
-      <!-- Tendencia mensual (últimos 12 meses) -->
+      <!-- GRÁFICA DE BARRAS: Recaudación por mes -->
       <div class="card card-pad">
         <div class="flex items-center justify-between mb-4">
           <div>
             <p class="section-eyebrow">Tendencia</p>
-            <h2 class="text-base font-semibold mt-1">Recaudación mensual ${_filter.year}</h2>
+            <h2 class="text-base font-semibold mt-1">Recaudación por mes · ${_filter.year}${_filter.quincena ? ` · Q${_filter.quincena}` : ''}</h2>
           </div>
-          <span class="text-xs text-zinc-500 tabular-nums">Total año: ${formatMXN(trend.yearTotal)}</span>
+          <span class="text-xs text-zinc-500 tabular-nums">Total: ${formatMXN(bars.total)}</span>
         </div>
-        ${trend.rows.length === 0
-          ? `<p class="text-sm text-zinc-500 py-6 text-center">Aún no hay pagos en ${_filter.year}.</p>`
-          : `<div class="flex flex-col">${trend.rows.map(trendRow).join('')}</div>`
-        }
+        ${barsChart(bars)}
+      </div>
+
+      <!-- GRÁFICA DE LÍNEAS: % cobrado por mes -->
+      <div class="card card-pad">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="section-eyebrow">Evolución</p>
+            <h2 class="text-base font-semibold mt-1">% Cobrado por mes · ${_filter.year}${_filter.quincena ? ` · Q${_filter.quincena}` : ''}</h2>
+          </div>
+          <span class="text-xs text-zinc-500 tabular-nums">Promedio: ${lines.avg}%</span>
+        </div>
+        ${linesChart(lines)}
       </div>
 
       <!-- Por categoría del período -->
@@ -150,11 +157,11 @@ function paint(root) {
     paint(root);
   });
   root.querySelector('#s-month').addEventListener('change', (e) => {
-    _filter.month = e.target.value; // 'all' o '1'..'12'
+    _filter.month = e.target.value;
     paint(root);
   });
   root.querySelector('#s-q').addEventListener('change', (e) => {
-    _filter.quincena = e.target.value; // ''|'1'|'2'
+    _filter.quincena = e.target.value;
     paint(root);
   });
   root.querySelector('#reset-filter').addEventListener('click', () => {
@@ -164,7 +171,7 @@ function paint(root) {
   });
 }
 
-// ============ COMPONENTES ============ //
+// ============ COMPONENTES UI ============ //
 
 function statBlock(label, value, sub, tone) {
   const dotClass = tone === 'success' ? 'dot-success' : tone === 'warning' ? 'dot-warning' : tone === 'danger' ? 'dot-danger' : 'dot-neutral';
@@ -202,23 +209,6 @@ function compareBlock(label, current, previous, delta, isPercent = false) {
   `;
 }
 
-function trendRow(r) {
-  const max = Math.max(1, r.total);
-  const paidPct = r.total ? Math.round((r.paid / r.total) * 100) : 0;
-  return `
-    <div class="cat-row">
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="cat-name">${escapeHTML(r.label)}</span>
-        <span class="cat-count">${formatMXN(r.paid)} · ${paidPct}%</span>
-      </div>
-      <div class="progress">
-        <div class="bar-paid"    style="width:${paidPct}%"></div>
-        <div class="bar-pending" style="width:${100 - paidPct}%"></div>
-      </div>
-    </div>
-  `;
-}
-
 function catRow(c) {
   return `
     <tr>
@@ -233,6 +223,134 @@ function catRow(c) {
         </span>
       </td>
     </tr>
+  `;
+}
+
+// ============ GRÁFICAS SVG ============ //
+
+function barsChart(data) {
+  // data: { labels: ['Ene',...], values: [n1,...], total, max }
+  const W = 600, H = 260;
+  const padL = 50, padR = 16, padT = 16, padB = 32;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = data.values.length;
+  const gapRatio = 0.35;
+  const barW = (plotW / n) * (1 - gapRatio);
+  const stepX = plotW / n;
+  const maxV = Math.max(1, data.max);
+  // Escala "nice": redondeamos max hacia arriba para grid
+  const niceMax = niceCeil(maxV);
+  const gridSteps = 4;
+  const gridLines = [];
+  const yLabels = [];
+  for (let i = 0; i <= gridSteps; i++) {
+    const v = (niceMax / gridSteps) * i;
+    const y = padT + plotH - (v / niceMax) * plotH;
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#F4F4F5" stroke-width="1" />`);
+    yLabels.push(`<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(compactMoney(v))}</text>`);
+  }
+  const bars = data.values.map((v, i) => {
+    const x = padL + stepX * i + (stepX - barW) / 2;
+    const h = (v / niceMax) * plotH;
+    const y = padT + plotH - h;
+    const isZero = v === 0;
+    return `
+      <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h, 1)}"
+            fill="${isZero ? '#E4E4E7' : '#09090B'}" rx="2" />
+      <title>${escapeHTML(data.labels[i])}: ${escapeHTML(formatMXN(v))}</title>
+    `;
+  }).join('');
+  const xLabels = data.labels.map((lab, i) => {
+    const x = padL + stepX * i + stepX / 2;
+    return `<text x="${x}" y="${H - padB + 18}" text-anchor="middle" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
+  }).join('');
+
+  return `
+    <div class="w-full overflow-x-auto">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras: recaudación por mes" class="w-full h-auto" style="min-width: 480px;">
+        ${gridLines.join('')}
+        ${yLabels.join('')}
+        ${bars}
+        ${xLabels}
+      </svg>
+    </div>
+  `;
+}
+
+function linesChart(data) {
+  // data: { labels: ['Ene',...], values: [0..100,...], avg, max }
+  const W = 600, H = 260;
+  const padL = 40, padR = 16, padT = 16, padB = 32;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = data.values.length;
+  const stepX = plotW / (n - 1 || 1);
+  const minV = 0, maxV = 100;
+
+  // Grid horizontal (0, 25, 50, 75, 100)
+  const gridSteps = 4;
+  const gridLines = [];
+  const yLabels = [];
+  for (let i = 0; i <= gridSteps; i++) {
+    const v = (maxV / gridSteps) * i;
+    const y = padT + plotH - (v / maxV) * plotH;
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#F4F4F5" stroke-width="1" />`);
+    yLabels.push(`<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${v}%</text>`);
+  }
+
+  // Puntos y línea
+  const points = data.values.map((v, i) => {
+    const x = padL + stepX * i;
+    const y = padT + plotH - (v / maxV) * plotH;
+    return { x, y, v, lab: data.labels[i] };
+  });
+
+  // Línea promedio (referencia)
+  const avg = data.avg;
+  const avgY = padT + plotH - (avg / maxV) * plotH;
+  const avgLine = `
+    <line x1="${padL}" y1="${avgY}" x2="${W - padR}" y2="${avgY}"
+          stroke="#A1A1AA" stroke-width="1" stroke-dasharray="3 3" />
+    <text x="${W - padR - 4}" y="${avgY - 4}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif">Promedio ${avg}%</text>
+  `;
+
+  // Polyline
+  const polyline = points.map((p) => `${p.x},${p.y}`).join(' ');
+  const linePath = `
+    <polyline points="${polyline}" fill="none" stroke="#09090B" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+  `;
+
+  // Puntos
+  const dots = points.map((p) => `
+    <circle cx="${p.x}" cy="${p.y}" r="3" fill="white" stroke="#09090B" stroke-width="1.5">
+      <title>${escapeHTML(p.lab)}: ${p.v}%</title>
+    </circle>
+  `).join('');
+
+  // Si no hay datos válidos (todos 0), mensaje sutil
+  const allZero = data.values.every((v) => v === 0);
+  const emptyMsg = allZero
+    ? `<text x="${W / 2}" y="${padT + plotH / 2 + 4}" text-anchor="middle" font-size="11" fill="#A1A1AA" font-family="Inter, sans-serif">Sin pagos en ${_filter.year}</text>`
+    : '';
+
+  const xLabels = data.labels.map((lab, i) => {
+    const x = padL + stepX * i;
+    return `<text x="${x}" y="${H - padB + 18}" text-anchor="middle" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
+  }).join('');
+
+  return `
+    <div class="w-full overflow-x-auto">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto" style="min-width: 480px;">
+        ${gridLines.join('')}
+        ${yLabels.join('')}
+        ${linePath}
+        ${avgLine}
+        ${dots}
+        ${emptyMsg}
+        ${xLabels}
+      </svg>
+    </div>
   `;
 }
 
@@ -262,58 +380,66 @@ function computeStats(f) {
   const totalEsperado = recaudado + pendiente;
   const cobradoPct = totalEsperado > 0 ? Math.round((recaudado / totalEsperado) * 100) : 0;
   const jugadoresUnicos = new Set(pays.map((p) => p.playerId)).size;
-  return {
-    recaudado, pendiente, totalEsperado,
-    cobradoPagos, pendientePagos, totalPagos,
-    cobradoPct,
-    jugadoresUnicos,
-  };
+  return { recaudado, pendiente, totalEsperado, cobradoPagos, pendientePagos, totalPagos, cobradoPct, jugadoresUnicos };
 }
 
 function computePrevious(f) {
-  // Determinar el "período anterior" en función del filtro actual
-  let prevY = f.year;
-  let prevM;
-  let prevQ;
-
   if (f.month === 'all') {
-    // Período anterior = año completo anterior
-    return { filter: { year: f.year - 1, month: 'all', quincena: '' }, ...computeStats({ year: f.year - 1, month: 'all', quincena: '' }) };
+    const prevY = f.year - 1;
+    return { filter: { year: prevY, month: 'all', quincena: '' }, ...computeStats({ year: prevY, month: 'all', quincena: '' }) };
   }
-
-  prevQ = f.quincena;
-  prevM = Number(f.month);
+  let prevY = f.year;
+  let prevM = Number(f.month);
+  let prevQ = f.quincena;
   if (f.quincena === '') {
-    prevM = Number(f.month) - 1;
+    prevM = prevM - 1;
     if (prevM < 1) { prevM = 12; prevY -= 1; }
   } else if (f.quincena === '1') {
-    // Q1 → Q2 del mes anterior
-    prevM = Number(f.month) - 1;
+    prevM = prevM - 1;
     prevQ = '2';
     if (prevM < 1) { prevM = 12; prevY -= 1; }
   } else if (f.quincena === '2') {
-    // Q2 → Q1 del mismo mes
     prevQ = '1';
   }
-
   const prevFilter = { year: prevY, month: String(prevM), quincena: prevQ };
   return { filter: prevFilter, ...computeStats(prevFilter) };
 }
 
-function computeTrend(year) {
-  const months = [1,2,3,4,5,6,7,8,9,10,11,12];
-  const rows = months.map((m) => {
-    const pays = state.payments.filter((p) => Number(p.year) === year && Number(p.month) === m);
+function monthAggregate(year, quincena) {
+  // Devuelve array de 12 meses con { paid, total, pct }
+  return Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    const pays = state.payments.filter((p) => {
+      if (Number(p.year) !== year) return false;
+      if (Number(p.month) !== month) return false;
+      if (quincena !== '' && Number(p.quincena) !== Number(quincena)) return false;
+      return true;
+    });
     const paid = pays.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
-    const pending = pays.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount || 0), 0);
-    return {
-      label: monthName(m - 1),
-      paid, pending,
-      total: paid + pending,
-    };
+    const total = pays.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
+    return { month, paid, total, pct };
   });
-  const yearTotal = rows.reduce((s, r) => s + r.paid, 0);
-  return { rows, yearTotal };
+}
+
+function computeBarData(f) {
+  const months = monthAggregate(f.year, f.quincena);
+  const labels = months.map((m) => monthShort(m.month - 1));
+  const values = months.map((m) => m.paid);
+  const total = values.reduce((s, v) => s + v, 0);
+  const max = Math.max(...values, 0);
+  return { labels, values, total, max };
+}
+
+function computeLineData(f) {
+  const months = monthAggregate(f.year, f.quincena);
+  const labels = months.map((m) => monthShort(m.month - 1));
+  const values = months.map((m) => m.pct);
+  const withData = values.filter((v) => v > 0 || months[values.indexOf(v)].total > 0);
+  const avg = withData.length > 0
+    ? Math.round(withData.reduce((s, v) => s + v, 0) / withData.length)
+    : 0;
+  return { labels, values, avg, max: 100 };
 }
 
 function computeByCategory(f) {
@@ -332,10 +458,7 @@ function computeByCategory(f) {
 }
 
 function deltaPct(current, previous) {
-  if (!previous || previous === 0) {
-    if (current === 0) return 0;
-    return 100;
-  }
+  if (!previous || previous === 0) return current === 0 ? 0 : 100;
   return ((current - previous) / previous) * 100;
 }
 
@@ -345,4 +468,23 @@ function periodLabel(f) {
   const m = monthName(Number(f.month) - 1);
   if (f.quincena === '') return `${m} ${y}`;
   return `${m} ${y} · Q${f.quincena}`;
+}
+
+// Helpers
+function niceCeil(n) {
+  if (n <= 0) return 1;
+  const exp = Math.floor(Math.log10(n));
+  const f = n / Math.pow(10, exp);
+  let nice;
+  if (f <= 1) nice = 1;
+  else if (f <= 2) nice = 2;
+  else if (f <= 5) nice = 5;
+  else nice = 10;
+  return nice * Math.pow(10, exp);
+}
+
+function compactMoney(n) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}k`;
+  return `$${n.toFixed(0)}`;
 }
