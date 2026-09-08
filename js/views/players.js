@@ -541,7 +541,9 @@ function openPlayerForm(id) {
 
   const footer = `
     <button type="button" class="btn btn-ghost" data-action="cancel">Cancelar</button>
-    <button type="button" class="btn btn-primary" data-action="save">${ICON.check}<span>${isEdit ? 'Guardar cambios' : 'Crear jugador'}</span></button>
+    <button type="submit" class="btn btn-primary" form="form-player">
+      <span>${isEdit ? 'Guardar cambios' : 'Crear jugador'}</span>
+    </button>
   `;
 
   const m = openModal({
@@ -593,7 +595,6 @@ function openPlayerForm(id) {
     if (!btn) return;
     const action = btn.dataset.action;
     if (action === 'cancel') { m.close(); return; }
-    if (action === 'save') { handleSave(); return; }
     if (action === 'select-category') {
       data.category = btn.dataset.cat;
       const hidden = form.querySelector('[name=category]');
@@ -655,7 +656,7 @@ function openPlayerForm(id) {
       exempt:      Boolean(data.exempt),
     };
 
-    const saveBtn = panel.querySelector('[data-action="save"]');
+    const saveBtn = panel.querySelector('button[type=submit][form="form-player"]');
     if (saveBtn) {
       saveBtn.disabled = true;
       saveBtn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span><span>Guardando…</span>';
@@ -672,10 +673,10 @@ function openPlayerForm(id) {
       m.close();
     } catch (err) {
       console.error('[openPlayerForm] save error', err);
-      toast('Error al guardar', 'error');
+      toast('Error al guardar: ' + (err?.message || err), 'error');
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.innerHTML = `${ICON.check}<span>${isEdit ? 'Guardar cambios' : 'Crear jugador'}</span>`;
+        saveBtn.innerHTML = `<span>${isEdit ? 'Guardar cambios' : 'Crear jugador'}</span>`;
       }
     }
   }
