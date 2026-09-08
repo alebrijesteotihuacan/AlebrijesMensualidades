@@ -241,7 +241,7 @@ async function onCopy(paymentId) {
 
 // === FORMULARIO PAGO (UX mejorada: búsqueda, chips de período, contexto) ===
 
-function openPaymentForm(id, preSelectedPlayerId = null) {
+export function openPaymentForm(id, preSelectedPlayerId = null) {
   const editing = id ? state.payments.find((p) => p.id === id) : null;
   const today = new Date();
   const currentYear = today.getFullYear();
