@@ -1,9 +1,9 @@
 // js/views/payments.js
-// Vista de Pagos: tabla con filtros, marcar pagado, copiar mensaje, ver CLABE.
+// Vista de Pagos: tabla en desktop, cards en mobile. Filtros colapsables.
 
-import { state, toast, openModal, confirmModal, escapeHTML, amountForPlayer } from '../app.js';
+import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, amountForPlayer } from '../app.js';
 import { payments } from '../services/firestore.js';
-import { classifyMora, moraBadgeClass, moraLabel } from '../services/mora.js';
+import { classifyMora, moraLabel } from '../services/mora.js';
 import { renderMessage, copyToClipboard, BANK_INFO } from '../services/messages.js';
 import { formatMXN, formatDate, getCurrentQuincena, quincenaLabel } from '../utils/dates.js';
 import { toCSV, toPDF } from '../services/export.js';
@@ -14,89 +14,100 @@ export function renderPayments(root) {
   const current = getCurrentQuincena();
 
   root.innerHTML = `
-    <section class="flex flex-col gap-6">
-      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <section class="flex flex-col gap-5">
+      <header class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 class="font-display font-extrabold text-2xl sm:text-3xl">Pagos</h1>
-          <p class="muted text-sm">${quincenaLabel(current.year, current.quincena)} · Período actual</p>
+          <p class="section-eyebrow">Cobranza</p>
+          <h1 class="font-display font-extrabold text-3xl sm:text-4xl uppercase tracking-tight">Pagos</h1>
+          <p class="muted text-sm mt-1">${escapeHTML(quincenaLabel(current.year, current.quincena))} · Período actual</p>
         </div>
-        <div class="flex gap-2">
-          <button id="btn-clabe" class="btn-secondary">
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/></svg>
-            Datos de pago
-          </button>
-          <button id="btn-new-payment" class="btn-primary">
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/></svg>
-            Nuevo pago
-          </button>
+        <div class="flex flex-wrap gap-2">
+          <button id="btn-clabe" type="button" class="btn btn-steel">${ICON.bank}<span>Datos bancarios</span></button>
+          <button id="btn-new-payment" type="button" class="btn btn-primary">${ICON.plus}<span>Nuevo pago</span></button>
         </div>
       </header>
 
       <!-- Filtros -->
-      <div class="card card-pad grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div class="col-span-2 lg:col-span-2">
-          <label class="label">Jugador</label>
-          <select id="f-player" class="select">
-            <option value="">Todos</option>
-            ${state.players.map((p) => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join('')}
-          </select>
+      <details class="card card-pad" id="filters-card">
+        <summary class="flex items-center justify-between cursor-pointer list-none">
+          <div class="flex items-center gap-3">
+            <span class="section-eyebrow">Filtros</span>
+            <span id="filter-count" class="badge badge-neutral">0 activos</span>
+          </div>
+          <span class="text-ink-500 text-sm">${ICON.chevronDown}</span>
+        </summary>
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+          <div class="col-span-2">
+            <label class="label" for="f-player">Jugador</label>
+            <select id="f-player" class="select">
+              <option value="">Todos</option>
+              ${state.players.map((p) => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="label" for="f-year">Año</label>
+            <select id="f-year" class="select">
+              <option value="">Todos</option>
+              ${[...new Set(state.payments.map((p) => p.year))].sort((a,b) => b-a).map((y) => `<option value="${y}">${y}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="label" for="f-quincena">Quincena</label>
+            <select id="f-quincena" class="select">
+              <option value="">Todas</option>
+              <option value="1">Q1 (1-15)</option>
+              <option value="2">Q2 (16-31)</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="f-status">Estado</label>
+            <select id="f-status" class="select">
+              <option value="">Todos</option>
+              <option value="paid">Pagado</option>
+              <option value="pending">Pendiente</option>
+            </select>
+          </div>
+          <div class="col-span-2 lg:col-span-5 flex flex-wrap gap-2 justify-end">
+            <button id="f-clear" type="button" class="btn btn-ghost">Limpiar</button>
+            <button id="btn-export-csv" type="button" class="btn btn-secondary">Exportar CSV</button>
+            <button id="btn-export-pdf" type="button" class="btn btn-secondary">Exportar PDF</button>
+          </div>
         </div>
-        <div>
-          <label class="label">Año</label>
-          <select id="f-year" class="select">
-            <option value="">Todos</option>
-            ${[...new Set(state.payments.map((p) => p.year))].sort((a,b) => b-a).map((y) => `<option value="${y}">${y}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label class="label">Quincena</label>
-          <select id="f-quincena" class="select">
-            <option value="">Todas</option>
-            <option value="1">Q1 (1-15)</option>
-            <option value="2">Q2 (16-31)</option>
-          </select>
-        </div>
-        <div>
-          <label class="label">Estado</label>
-          <select id="f-status" class="select">
-            <option value="">Todos</option>
-            <option value="paid">Pagado</option>
-            <option value="pending">Pendiente</option>
-          </select>
-        </div>
-        <div class="col-span-2 lg:col-span-5 flex flex-wrap gap-2 justify-end">
-          <button id="f-clear" class="btn-ghost">Limpiar</button>
-          <button id="btn-export-csv"  class="btn-secondary">Exportar CSV</button>
-          <button id="btn-export-pdf"  class="btn-secondary">Exportar PDF</button>
-        </div>
-      </div>
+      </details>
 
-      <!-- Tabla -->
+      <!-- Lista / Tabla -->
       <div id="payments-table"></div>
     </section>
   `;
 
-  // Wire filtros
   const playerSel  = root.querySelector('#f-player');
   const yearSel    = root.querySelector('#f-year');
   const quincenaSel= root.querySelector('#f-quincena');
   const statusSel  = root.querySelector('#f-status');
   const clear      = root.querySelector('#f-clear');
+  const filterCount = root.querySelector('#filter-count');
 
   playerSel.value   = _filter.playerId;
   yearSel.value     = _filter.year;
   quincenaSel.value = _filter.quincena;
   statusSel.value   = _filter.status;
 
-  playerSel.addEventListener('change',   (e) => { _filter.playerId   = e.target.value; paint(); });
-  yearSel.addEventListener('change',     (e) => { _filter.year       = e.target.value; paint(); });
-  quincenaSel.addEventListener('change', (e) => { _filter.quincena   = e.target.value; paint(); });
-  statusSel.addEventListener('change',   (e) => { _filter.status     = e.target.value; paint(); });
+  playerSel.addEventListener('change',   (e) => { _filter.playerId   = e.target.value; paint(); updateFilterCount(); });
+  yearSel.addEventListener('change',     (e) => { _filter.year       = e.target.value; paint(); updateFilterCount(); });
+  quincenaSel.addEventListener('change', (e) => { _filter.quincena   = e.target.value; paint(); updateFilterCount(); });
+  statusSel.addEventListener('change',   (e) => { _filter.status     = e.target.value; paint(); updateFilterCount(); });
   clear.addEventListener('click', () => {
     _filter = { playerId: '', year: '', quincena: '', status: '' };
     playerSel.value = yearSel.value = quincenaSel.value = statusSel.value = '';
     paint();
+    updateFilterCount();
   });
+
+  function updateFilterCount() {
+    const n = Object.values(_filter).filter(Boolean).length;
+    filterCount.textContent = `${n} ${n === 1 ? 'activo' : 'activos'}`;
+  }
+  updateFilterCount();
 
   root.querySelector('#btn-new-payment').addEventListener('click', () => openPaymentForm(null));
   root.querySelector('#btn-clabe').addEventListener('click', () => openClabeModal());
@@ -111,21 +122,31 @@ export function renderPayments(root) {
       .sort((a, b) => (b.year - a.year) || (b.quincena - a.quincena) || (a.playerName || '').localeCompare(b.playerName || ''));
 
     if (filtered.length === 0) {
-      wrap.innerHTML = `<div class="card card-pad text-center"><p class="font-semibold">Sin pagos registrados</p><p class="muted text-sm">Crea el primer pago con el botón "Nuevo pago".</p></div>`;
+      wrap.innerHTML = `<div class="empty-state">
+          <div class="empty-state-icon mx-auto">${ICON.cash}</div>
+          <p class="font-display font-extrabold text-xl uppercase">Sin pagos registrados</p>
+          <p class="muted text-sm mt-1">Crea el primer pago con el botón "Nuevo pago".</p>
+        </div>`;
       return;
     }
 
     wrap.innerHTML = `
-      <div class="table-wrap">
+      <!-- Mobile: cards -->
+      <div class="md:hidden flex flex-col gap-3">
+        ${filtered.map(rowCard).join('')}
+      </div>
+
+      <!-- Desktop: tabla -->
+      <div class="hidden md:block table-wrap">
         <table class="table">
           <thead>
             <tr>
               <th>Jugador</th>
-              <th class="hidden sm:table-cell">Categoría</th>
+              <th>Categoría</th>
               <th>Período</th>
               <th>Monto</th>
               <th>Estado</th>
-              <th class="hidden md:table-cell">Pagado</th>
+              <th>Pagado</th>
               <th class="text-right">Acciones</th>
             </tr>
           </thead>
@@ -140,7 +161,6 @@ export function renderPayments(root) {
     wrap.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openPaymentForm(b.dataset.edit)));
     wrap.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => onDelete(b.dataset.del)));
     wrap.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => onCopy(b.dataset.copy)));
-    wrap.querySelectorAll('[data-view-clabe]').forEach((b) => b.addEventListener('click', () => openClabeModal(b.dataset.viewClabe)));
   }
 }
 
@@ -160,42 +180,81 @@ function rowHTML(p) {
   const isPending  = p.status === 'pending';
   const level      = isPending && player ? classifyMora(player) : null;
   const statusBadge = isPending
-    ? `<span class="${moraBadgeClass(level || 'recordatorio')}">${moraLabel(level || 'recordatorio')}</span>`
-    : `<span class="badge badge-paid">Pagado</span>`;
+    ? `<span class="badge ${level === 'mora5' ? 'badge-mora' : level === 'mora3' ? 'badge-mora' : level === 'mora1' ? 'badge-pending' : 'badge-info'}">${escapeHTML(moraLabel(level || 'recordatorio'))}</span>`
+    : `<span class="badge badge-paid">${ICON.check}<span>Pagado</span></span>`;
 
   return `
     <tr>
       <td>
-        <div class="font-semibold">${escapeHTML(playerName)}</div>
-        <div class="text-xs muted sm:hidden">${escapeHTML(playerCat)}</div>
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="player-avatar shrink-0" style="${avatarGradient(playerName)}">${escapeHTML(initialsOf(playerName))}</div>
+          <span class="font-bold truncate">${escapeHTML(playerName)}</span>
+        </div>
       </td>
-      <td class="hidden sm:table-cell">${escapeHTML(playerCat)}</td>
-      <td>${quincenaLabel(p.year, p.quincena)}</td>
-      <td class="font-bold">${formatMXN(p.amount)}</td>
+      <td><span class="tag">${escapeHTML(playerCat)}</span></td>
+      <td class="tabular">${escapeHTML(quincenaLabel(p.year, p.quincena))}</td>
+      <td class="font-bold tabular">${formatMXN(p.amount)}</td>
       <td>${statusBadge}</td>
-      <td class="hidden md:table-cell text-xs muted">${p.paidDate ? formatDate(p.paidDate) : '—'}</td>
-      <td>
-        <div class="flex justify-end gap-1">
+      <td class="text-xs muted tabular">${p.paidDate ? formatDate(p.paidDate) : '—'}</td>
+      <td class="text-right">
+        <div class="inline-flex gap-1">
           ${isPending ? `
-            <button data-copy="${p.id}" class="btn-ghost btn-sm" title="Copiar mensaje">
-              <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z"/><path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/></svg>
-              Copiar
-            </button>
-            <button data-pay="${p.id}" class="btn-primary btn-sm">
-              <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-              Pagado
-            </button>
+            <button data-copy="${p.id}" type="button" class="icon-btn" aria-label="Copiar mensaje de pago">${ICON.copy}</button>
+            <button data-pay="${p.id}" type="button" class="btn btn-primary btn-sm">${ICON.check}<span>Pagado</span></button>
           ` : ''}
-          <button data-edit="${p.id}" class="btn-ghost btn-sm" title="Editar">
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-          </button>
-          <button data-del="${p.id}" class="btn-ghost btn-sm text-red-600 hover:bg-red-50" title="Eliminar">
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-          </button>
+          <button data-edit="${p.id}" type="button" class="icon-btn" aria-label="Editar pago">${ICON.edit}</button>
+          <button data-del="${p.id}" type="button" class="icon-btn icon-btn-danger" aria-label="Eliminar pago">${ICON.trash}</button>
         </div>
       </td>
     </tr>
   `;
+}
+
+function rowCard(p) {
+  const player = state.players.find((pl) => pl.id === p.playerId);
+  const playerName = player?.name || '—';
+  const playerCat  = player?.category || '—';
+  const isPending  = p.status === 'pending';
+  const level      = isPending && player ? classifyMora(player) : null;
+  const statusBadge = isPending
+    ? `<span class="badge ${level === 'mora5' ? 'badge-mora' : level === 'mora3' ? 'badge-mora' : level === 'mora1' ? 'badge-pending' : 'badge-info'}">${escapeHTML(moraLabel(level || 'recordatorio'))}</span>`
+    : `<span class="badge badge-paid">${ICON.check}<span>Pagado</span></span>`;
+
+  return `
+    <article class="pay-card">
+      <div class="pay-card-row">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="player-avatar" style="${avatarGradient(playerName)}">${escapeHTML(initialsOf(playerName))}</div>
+          <div class="min-w-0">
+            <p class="pay-card-name truncate">${escapeHTML(playerName)}</p>
+            <p class="player-meta truncate">${escapeHTML(playerCat)}</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <p class="font-display font-extrabold text-lg tabular-nums leading-none">${formatMXN(p.amount)}</p>
+          <p class="text-[10px] uppercase tracking-widest font-bold text-ink-500 mt-1">${escapeHTML(quincenaLabel(p.year, p.quincena))}</p>
+        </div>
+      </div>
+      <div class="pay-card-row">
+        <div class="flex flex-wrap items-center gap-2">
+          ${statusBadge}
+          ${p.paidDate ? `<span class="tag">${escapeHTML(formatDate(p.paidDate))}</span>` : ''}
+        </div>
+        <div class="flex gap-1">
+          ${isPending ? `
+            <button data-copy="${p.id}" type="button" class="icon-btn" aria-label="Copiar mensaje">${ICON.copy}</button>
+            <button data-pay="${p.id}" type="button" class="btn btn-primary btn-sm">${ICON.check}<span>Pagado</span></button>
+          ` : ''}
+          <button data-edit="${p.id}" type="button" class="icon-btn" aria-label="Editar pago">${ICON.edit}</button>
+          <button data-del="${p.id}" type="button" class="icon-btn icon-btn-danger" aria-label="Eliminar pago">${ICON.trash}</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function initialsOf(name) {
+  return String(name || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 }
 
 // === ACCIONES ===
@@ -224,8 +283,8 @@ async function onDelete(id) {
   try {
     await payments.remove(id);
     toast('Pago eliminado', 'success');
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error(err);
     toast('Error al eliminar', 'error');
   }
 }
@@ -253,48 +312,49 @@ function openPaymentForm(id) {
   const current = getCurrentQuincena();
 
   const body = `
-    <form id="form-payment" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form id="form-payment" class="grid grid-cols-1 sm:grid-cols-2 gap-4" novalidate>
       <div class="sm:col-span-2">
-        <label class="label">Jugador *</label>
-        <select name="playerId" required class="select">
+        <label class="label" for="py-player">Jugador *</label>
+        <select id="py-player" name="playerId" required class="select">
           <option value="">Selecciona…</option>
           ${state.players.map((pl) => `<option value="${pl.id}" ${editing?.playerId === pl.id ? 'selected' : ''}>${escapeHTML(pl.name)}</option>`).join('')}
         </select>
       </div>
       <div>
-        <label class="label">Año *</label>
-        <input name="year" type="number" min="2020" max="2099" required class="input" value="${editing?.year ?? current.year}" />
+        <label class="label" for="py-year">Año *</label>
+        <input id="py-year" name="year" type="number" min="2020" max="2099" required inputmode="numeric" class="input tabular" value="${editing?.year ?? current.year}" />
       </div>
       <div>
-        <label class="label">Quincena *</label>
-        <select name="quincena" required class="select">
+        <label class="label" for="py-q">Quincena *</label>
+        <select id="py-q" name="quincena" required class="select">
           <option value="1" ${(editing?.quincena ?? current.quincena) === 1 ? 'selected' : ''}>Q1 (1-15)</option>
           <option value="2" ${(editing?.quincena ?? current.quincena) === 2 ? 'selected' : ''}>Q2 (16-31)</option>
         </select>
-        <p class="text-xs muted mt-1">Se autodefine según el día de pago del jugador.</p>
+        <p class="form-hint">Se autodefine según el día de pago del jugador.</p>
       </div>
       <div>
-        <label class="label">Monto (MXN) *</label>
-        <input name="amount" type="number" min="0" step="50" required class="input" value="${editing?.amount ?? ''}" />
-        <p class="text-xs muted mt-1" id="amount-hint">Selecciona jugador para autocompletar</p>
+        <label class="label" for="py-amount">Monto (MXN) *</label>
+        <input id="py-amount" name="amount" type="number" min="0" step="50" required inputmode="numeric" class="input tabular" value="${editing?.amount ?? ''}" />
+        <p class="form-hint" id="amount-hint">Selecciona jugador para autocompletar</p>
       </div>
       <div>
-        <label class="label">Estado *</label>
-        <select name="status" required class="select">
+        <label class="label" for="py-status">Estado *</label>
+        <select id="py-status" name="status" required class="select">
           <option value="pending" ${editing?.status !== 'paid' ? 'selected' : ''}>Pendiente</option>
           <option value="paid"    ${editing?.status === 'paid' ? 'selected' : ''}>Pagado</option>
         </select>
       </div>
-      <div>
-        <label class="label">Fecha de pago</label>
-        <input name="paidDate" type="date" class="input" value="${editing?.paidDate ?? ''}" />
+      <div class="sm:col-span-2">
+        <label class="label" for="py-paid">Fecha de pago</label>
+        <input id="py-paid" name="paidDate" type="date" class="input tabular" value="${editing?.paidDate ?? ''}" />
       </div>
+      <p id="py-error" class="sm:col-span-2 form-error" hidden></p>
     </form>
   `;
 
   const footer = `
-    <button data-cancel class="btn-secondary">Cancelar</button>
-    <button data-save class="btn-primary">${editing ? 'Guardar cambios' : 'Crear pago'}</button>
+    <button data-cancel type="button" class="btn btn-secondary">Cancelar</button>
+    <button data-save type="button" class="btn btn-primary">${editing ? 'Guardar cambios' : 'Crear pago'}</button>
   `;
 
   const m = openModal({ title: editing ? 'Editar pago' : 'Nuevo pago', body, footer, size: 'lg' });
@@ -310,7 +370,6 @@ function openPaymentForm(id) {
     if (pl) {
       const amt = amountForPlayer(pl);
       if (!amountIn.value) amountIn.value = amt;
-      // Autodefine quincena segun paymentDay (1-15 -> Q1, 16-31 -> Q2)
       const expectedQ = Number(pl.paymentDay) <= 15 ? 1 : 2;
       quincenaSel.value = String(expectedQ);
       hint.textContent = `Monto: ${formatMXN(amt)} · Día ${pl.paymentDay} → Q${expectedQ}`;
@@ -323,7 +382,19 @@ function openPaymentForm(id) {
 
   m.panel.querySelector('[data-cancel]').addEventListener('click', m.close);
   m.panel.querySelector('[data-save]').addEventListener('click', async () => {
-    if (!form.reportValidity()) return;
+    const errEl = m.panel.querySelector('#py-error');
+    errEl.hidden = true;
+
+    if (!playerSel.value) {
+      showErr('Selecciona un jugador'); playerSel.focus(); return;
+    }
+    if (!form.year.value || Number(form.year.value) < 2020) {
+      showErr('Año inválido'); form.year.focus(); return;
+    }
+    if (!amountIn.value || Number(amountIn.value) < 0) {
+      showErr('Monto inválido'); amountIn.focus(); return;
+    }
+
     const data = {
       playerId: playerSel.value,
       year:      Number(form.year.value),
@@ -345,6 +416,11 @@ function openPaymentForm(id) {
       console.error(e);
       toast('Error al guardar', 'error');
     }
+
+    function showErr(msg) {
+      errEl.textContent = msg;
+      errEl.hidden = false;
+    }
   });
 }
 
@@ -353,23 +429,20 @@ function openPaymentForm(id) {
 function openClabeModal() {
   const body = `
     <div class="flex flex-col gap-4 items-center">
-      <img src="assets/clabe.png" alt="Datos de transferencia" class="w-full max-w-md rounded-xl border border-ink-200" />
+      <img src="assets/clabe.png" alt="Datos de transferencia" class="w-full max-w-md rounded-lg border border-ink-200" />
       <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full text-sm">
-        <div class="card card-pad sm:col-span-1"><dt class="text-xs muted">Banco</dt><dd class="font-bold">${escapeHTML(BANK_INFO.banco)}</dd></div>
-        <div class="card card-pad sm:col-span-2"><dt class="text-xs muted">Titular</dt><dd class="font-bold">${escapeHTML(BANK_INFO.titular)}</dd></div>
-        <div class="card card-pad sm:col-span-3"><dt class="text-xs muted">CLABE Interbancaria</dt>
+        <div class="card card-pad sm:col-span-1"><dt class="text-[10px] uppercase tracking-widest font-bold muted">Banco</dt><dd class="font-bold">${escapeHTML(BANK_INFO.banco)}</dd></div>
+        <div class="card card-pad sm:col-span-2"><dt class="text-[10px] uppercase tracking-widest font-bold muted">Titular</dt><dd class="font-bold">${escapeHTML(BANK_INFO.titular)}</dd></div>
+        <div class="card card-pad sm:col-span-3"><dt class="text-[10px] uppercase tracking-widest font-bold muted">CLABE Interbancaria</dt>
           <dd class="font-mono font-bold tracking-wide">${escapeHTML(BANK_INFO.clabe)}</dd>
         </div>
-        <div class="card card-pad sm:col-span-3"><dt class="text-xs muted">Concepto</dt><dd class="font-bold">${escapeHTML(BANK_INFO.concepto)}</dd></div>
+        <div class="card card-pad sm:col-span-3"><dt class="text-[10px] uppercase tracking-widest font-bold muted">Concepto</dt><dd class="font-bold">${escapeHTML(BANK_INFO.concepto)}</dd></div>
       </dl>
     </div>
   `;
   const footer = `
-    <button data-copy-clabe class="btn-secondary">
-      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z"/><path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/></svg>
-      Copiar CLABE
-    </button>
-    <button data-close class="btn-primary">Cerrar</button>
+    <button data-copy-clabe type="button" class="btn btn-secondary">${ICON.copy}<span>Copiar CLABE</span></button>
+    <button data-close type="button" class="btn btn-primary">Cerrar</button>
   `;
   const m = openModal({ title: 'Datos de transferencia', body, footer, size: 'lg' });
   m.panel.querySelector('[data-close]').addEventListener('click', m.close);

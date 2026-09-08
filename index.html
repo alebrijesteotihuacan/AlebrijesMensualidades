@@ -2,14 +2,15 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A0E1A" />
   <title>Alebrijes Teotihuacán · Mensualidad</title>
   <meta name="description" content="Gestión de jugadores y mensualidades - Alebrijes Teotihuacán" />
 
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -18,34 +19,55 @@
         extend: {
           fontFamily: {
             sans: ['Inter', 'system-ui', 'sans-serif'],
-            display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+            display: ['"Big Shoulders Display"', 'Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
           },
           colors: {
+            /* Naranja Alebrije — primario vivo */
             brand: {
-              50:  '#FFF7ED',
-              100: '#FFEDD5',
-              200: '#FED7AA',
-              300: '#FDBA74',
-              400: '#FB923C',
-              500: '#F97316',
-              600: '#EA580C',
-              700: '#C2410C',
-              800: '#9A3412',
-              900: '#7C2D12',
+              50:  '#FFF4EA',
+              100: '#FFE2C7',
+              200: '#FFC089',
+              300: '#FF9A4D',
+              400: '#FF7B1A',
+              500: '#F26B1F',  // principal
+              600: '#D4540F',
+              700: '#A73F0A',
+              800: '#7A2D07',
+              900: '#4D1C04',
             },
+            /* Azul metálico institucional */
+            steel: {
+              50:  '#EEF3F8',
+              100: '#D5E0EC',
+              200: '#A8BFD9',
+              300: '#7A9DC2',
+              400: '#4F7AAB',
+              500: '#345C85',
+              600: '#1E3A5F',  // principal
+              700: '#142A47',
+              800: '#0A1A30',
+              900: '#050D1A',
+            },
+            /* Negro profundo con tinte azulado */
             ink: {
-              50:  '#F8FAFC',
-              100: '#F1F5F9',
-              200: '#E2E8F0',
-              300: '#CBD5E1',
-              500: '#64748B',
-              700: '#334155',
-              900: '#0F172A',
+              50:  '#F4F5F7',
+              100: '#E2E5EB',
+              200: '#C4C9D3',
+              300: '#9CA4B5',
+              400: '#6B7388',
+              500: '#4B5266',
+              600: '#2E3445',
+              700: '#1A1F2E',
+              800: '#10141F',
+              900: '#0A0E1A',
             },
           },
           boxShadow: {
-            soft: '0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06)',
-            ring: '0 0 0 4px rgba(249,115,22,.15)',
+            soft: '0 1px 2px rgba(10,14,26,.04), 0 8px 24px rgba(10,14,26,.06)',
+            metallic: '0 1px 0 rgba(255,255,255,.06) inset, 0 -1px 0 rgba(10,14,26,.12) inset, 0 10px 30px -10px rgba(10,14,26,.35)',
+            ring: '0 0 0 4px rgba(242,107,31,.18)',
+            cromo: '0 1px 0 rgba(255,255,255,.18) inset, 0 -1px 0 rgba(10,14,26,.4) inset',
           },
         },
       },
@@ -58,31 +80,36 @@
 </head>
 <body class="min-h-screen bg-ink-50 text-ink-900 font-sans antialiased">
 
+  <!-- Skip link para teclado -->
+  <a href="#main" class="skip-link">Saltar al contenido principal</a>
+
   <!-- ============== HEADER ============== -->
-  <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-ink-200">
+  <header class="site-header">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-      <a href="#/dashboard" class="flex items-center gap-3 group">
-        <img src="assets/logo.png" alt="Alebrijes" class="h-10 w-10 rounded-full ring-2 ring-brand-500 object-cover" />
-        <div class="leading-tight">
-          <p class="font-display font-extrabold text-base sm:text-lg tracking-tight">Alebrijes Teotihuacán</p>
-          <p class="text-[11px] sm:text-xs text-ink-500">Gestión de Mensualidades</p>
-        </div>
+      <a href="#/dashboard" class="flex items-center gap-3 group" aria-label="Ir al inicio">
+        <span class="logo-mark" aria-hidden="true">
+          <img src="assets/logo.png" alt="" class="h-full w-full object-cover" />
+        </span>
+        <span class="leading-tight">
+          <span class="block font-display font-extrabold text-base sm:text-lg tracking-tight">Alebrijes Teotihuacán</span>
+          <span class="block text-[10px] sm:text-xs uppercase tracking-[0.18em] text-ink-500 font-semibold">Gestión de Mensualidades</span>
+        </span>
       </a>
 
-      <nav class="hidden md:flex items-center gap-1" id="nav-desktop">
+      <nav class="hidden md:flex items-center gap-1" id="nav-desktop" aria-label="Navegación principal">
         <a href="#/dashboard" data-route="dashboard" class="nav-link">Dashboard</a>
         <a href="#/players"   data-route="players"   class="nav-link">Jugadores</a>
         <a href="#/payments"  data-route="payments"  class="nav-link">Pagos</a>
       </nav>
 
-      <button id="hamburger" class="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-lg hover:bg-ink-100" aria-label="Abrir menú">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      <button id="hamburger" class="md:hidden icon-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="nav-mobile">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
     </div>
 
     <!-- Mobile menu -->
-    <div id="nav-mobile" class="hidden md:hidden border-t border-ink-200 bg-white">
-      <nav class="flex flex-col p-2 gap-1">
+    <div id="nav-mobile" class="md:hidden border-t border-ink-200 bg-white" hidden>
+      <nav class="flex flex-col p-2 gap-1" aria-label="Navegación móvil">
         <a href="#/dashboard" data-route="dashboard" class="nav-link">Dashboard</a>
         <a href="#/players"   data-route="players"   class="nav-link">Jugadores</a>
         <a href="#/payments"  data-route="payments"  class="nav-link">Pagos</a>
@@ -91,13 +118,13 @@
   </header>
 
   <!-- ============== MAIN ============== -->
-  <main id="main" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8"></main>
+  <main id="main" tabindex="-1" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8"></main>
 
   <!-- ============== FOOTER ============== -->
-  <footer class="border-t border-ink-200 bg-white mt-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 text-xs text-ink-500 flex items-center justify-between">
+  <footer class="site-footer mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-5 text-xs text-ink-500 flex items-center justify-between gap-3">
       <p>© <span id="year"></span> Alebrijes Teotihuacán · Profesor Haziel Macias</p>
-      <p class="hidden sm:block">v1.0</p>
+      <p class="hidden sm:flex items-center gap-2"><span class="font-display font-bold tracking-wider">ALE</span><span class="font-display font-bold tracking-wider">TDP</span></p>
     </div>
   </footer>
 
@@ -105,18 +132,7 @@
   <div id="modal-root"></div>
 
   <!-- ============== TOAST ROOT ============== -->
-  <div id="toast-root" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
-
-  <!-- ============== TEMPLATES ============== -->
-  <template id="tpl-empty">
-    <div class="bg-white rounded-2xl shadow-soft p-10 text-center">
-      <div class="mx-auto h-12 w-12 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center mb-3">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      </div>
-      <p class="font-display font-bold text-lg">Sin datos todavía</p>
-      <p class="text-sm text-ink-500 mt-1">Aún no hay registros que mostrar.</p>
-    </div>
-  </template>
+  <div id="toast-root" role="status" aria-live="polite" aria-atomic="false" class="toast-root"></div>
 
   <!-- ============== LIBS ============== -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

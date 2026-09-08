@@ -81,9 +81,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!window.location.hash) window.location.hash = '#/dashboard';
 
   // Hamburguesa
-  document.getElementById('hamburger')?.addEventListener('click', () => {
-    document.getElementById('nav-mobile')?.classList.toggle('hidden');
-  });
+  const btn = document.getElementById('hamburger');
+  const menu = document.getElementById('nav-mobile');
+  if (btn && menu) {
+    btn.addEventListener('click', () => {
+      const isOpen = !menu.hidden;
+      menu.hidden = isOpen;
+      btn.setAttribute('aria-expanded', String(!isOpen));
+    });
+  }
 
   renderRoute();
 });
@@ -96,11 +102,12 @@ const ICONS = {
   info:    '<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>',
 };
 
-export function toast(message, type = 'info', duration = 3000) {
+export function toast(message, type = 'info', duration = 3500) {
   const root = TOAST_ROOT();
   if (!root) return;
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
   el.innerHTML = `${ICONS[type] || ICONS.info}<span>${escapeHTML(message)}</span>`;
   root.appendChild(el);
   setTimeout(() => {
@@ -116,28 +123,55 @@ export function openModal({ title, body, footer, size = 'md' }) {
   const root = document.getElementById('modal-root');
   if (!root) return;
   root.innerHTML = '';
+  const previouslyFocused = document.activeElement;
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
-  const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
+  wrap.setAttribute('role', 'dialog');
+  wrap.setAttribute('aria-modal', 'true');
+  wrap.setAttribute('aria-label', title);
+  const sizeClass = size === 'lg' ? 'size-lg' : size === 'xl' ? 'size-xl' : size === 'sm' ? 'size-sm' : '';
   wrap.innerHTML = `
-    <div class="modal-panel ${widths[size] || widths.md}">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-ink-100">
-        <h3 class="font-display font-bold text-lg">${escapeHTML(title)}</h3>
-        <button data-close class="h-8 w-8 rounded-lg hover:bg-ink-100 inline-flex items-center justify-center" aria-label="Cerrar">
-          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+    <div class="modal-panel ${sizeClass}">
+      <div class="modal-header">
+        <h3 class="modal-title">${escapeHTML(title)}</h3>
+        <button data-close type="button" class="icon-btn" aria-label="Cerrar">
+          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
         </button>
       </div>
-      <div class="p-5">${body}</div>
-      ${footer ? `<div class="px-5 py-3 border-t border-ink-100 bg-ink-50/60 rounded-b-2xl flex justify-end gap-2">${footer}</div>` : ''}
+      <div class="modal-body">${body}</div>
+      ${footer ? `<div class="modal-footer">${footer}</div>` : ''}
     </div>
   `;
   root.appendChild(wrap);
 
-  function close() { root.innerHTML = ''; document.removeEventListener('keydown', onKey); }
-  function onKey(e) { if (e.key === 'Escape') close(); }
+  function close() {
+    root.innerHTML = '';
+    document.removeEventListener('keydown', onKey);
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      previouslyFocused.focus();
+    }
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'Tab') {
+      const focusables = wrap.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
   document.addEventListener('keydown', onKey);
   wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
   wrap.querySelector('[data-close]')?.addEventListener('click', close);
+
+  // Focus first focusable element
+  setTimeout(() => {
+    const firstInput = wrap.querySelector('input:not([type=hidden]), select, textarea, button');
+    firstInput?.focus();
+  }, 50);
+
   return { close, panel: wrap.querySelector('.modal-panel') };
 }
 
@@ -212,13 +246,13 @@ export const MSG_LEVELS = [
 ];
 
 const TONE_CLASS = {
-  sky:    { bg: 'bg-sky-100',    text: 'text-sky-700'    },
-  amber:  { bg: 'bg-amber-100',  text: 'text-amber-800'  },
-  orange: { bg: 'bg-orange-100', text: 'text-orange-700' },
-  red:    { bg: 'bg-red-100',    text: 'text-red-700'    },
+  sky:    { bg: 'bg-[#D5E0EC]', text: 'text-[#142A47]' },
+  amber:  { bg: 'bg-[#FFE2C7]', text: 'text-[#7A2D07]' },
+  orange: { bg: 'bg-[#FFE2C7]', text: 'text-[#A73F0A]' },
+  red:    { bg: 'bg-[#FEE2E2]', text: 'text-[#991B1B]' },
 };
 
-const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 sm:h-6 sm:w-6"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
+const BAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
 
 /**
  * Abre un menu flotante con las 4 opciones de mensaje para el jugador.
@@ -310,16 +344,17 @@ export function closeMessageMenu() {
 function escClose(e) { if (e.key === 'Escape') closeMessageMenu(); }
 
 // Paleta deterministica por nombre para avatares.
+// Paleta cromada institucional: oscuros + acentos alebrije.
 export function avatarGradient(name = '') {
   const palettes = [
-    ['#F97316', '#EA580C'], // brand
-    ['#0EA5E9', '#0369A1'], // sky
-    ['#10B981', '#047857'], // emerald
-    ['#F59E0B', '#B45309'], // amber
-    ['#8B5CF6', '#6D28D9'], // violet
-    ['#EC4899', '#BE185D'], // pink
-    ['#14B8A6', '#0F766E'], // teal
-    ['#EF4444', '#B91C1C'], // red
+    ['#345C85', '#0A0E1A'], // steel deep
+    ['#1E3A5F', '#050D1A'], // navy black
+    ['#F26B1F', '#7A2D07'], // alebrije naranja
+    ['#FF7B1A', '#A73F0A'], // alebrije vivo
+    ['#4F7AAB', '#142A47'], // steel medio
+    ['#0A0E1A', '#345C85'], // black to steel
+    ['#A73F0A', '#0A0E1A'], // cobre a negro
+    ['#1E3A5F', '#A73F0A'], // navy a cobre
   ];
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
