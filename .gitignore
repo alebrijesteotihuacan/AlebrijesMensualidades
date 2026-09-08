@@ -2,8 +2,3 @@
 node_modules/
 package.json
 package-lock.json
-
-# Datos sensibles (Excel con teléfonos)
-JugadoresAlebrijes_Cobranza_*.xlsx
-tools/pasted-data.txt
-tools/debug-pasted.mjs
