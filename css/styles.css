@@ -342,107 +342,8 @@
 
 /* ============================================
    ADEUDOS — distinción visual Vencidos vs Próximos
+   (versión unificada — usada por dashboard.js)
    ============================================ */
-.adeudo-group {
-  margin-bottom: 1rem;
-}
-.adeudo-group:last-child { margin-bottom: 0; }
-
-.adeudo-group-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 4px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.adeudo-group-label.overdue   { color: #991B1B; }
-.adeudo-group-label.upcoming  { color: #52525B; }
-
-.adeudo-group-label .count-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 9999px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
-}
-.adeudo-group-label.overdue  .count-pill { background: #FEE2E2; color: #991B1B; }
-.adeudo-group-label.upcoming .count-pill { background: #E4E4E7; color: #52525B; }
-
-.adeudo-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  margin-bottom: 6px;
-  border: 1px solid transparent;
-}
-.adeudo-item:last-child { margin-bottom: 0; }
-
-.adeudo-item.overdue {
-  background: #FEF2F2;
-  border-color: #FECACA;
-}
-.adeudo-item.upcoming {
-  background: #FAFAFA;
-  border-color: #F4F4F5;
-}
-
-.adeudo-item .ai-name {
-  font-size: 13px;
-  color: #18181B;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.adeudo-item.overdue .ai-name { font-weight: 600; }
-.adeudo-item.upcoming .ai-name { font-weight: 500; }
-
-.adeudo-item .ai-meta {
-  font-size: 11px;
-  color: #71717A;
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.adeudo-badge {
-  padding: 3px 9px;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  flex-shrink: 0;
-  letter-spacing: 0;
-}
-.adeudo-badge.overdue {
-  background: #FEE2E2;
-  color: #991B1B;
-}
-.adeudo-badge.upcoming {
-  background: #E4E4E7;
-  color: #52525B;
-}
-.adeudo-badge.urgent {
-  background: #DC2626;
-  color: #FFFFFF;
-  animation: adeudo-pulse 2s ease-in-out infinite;
-}
-@keyframes adeudo-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5); }
-  50%      { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); }
-}
 
 
 .combobox { position: relative; }
@@ -655,8 +556,165 @@
 }
 
 /* ============================================
-   MODAL (sin blur, sin scale)
+   CHART TOOLTIP (hover sobre barras/puntos)
    ============================================ */
+.chart-wrap { position: relative; }
+
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px -8px rgba(9, 9, 11, 0.18);
+  padding: 10px 12px;
+  min-width: 160px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 120ms ease-out, transform 120ms ease-out;
+  font-size: 12px;
+  color: #18181B;
+}
+.chart-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.chart-tooltip .tt-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: #09090B;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #F4F4F5;
+}
+.chart-tooltip .tt-rows { display: flex; flex-direction: column; gap: 3px; }
+.chart-tooltip .tt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11.5px;
+}
+.chart-tooltip .tt-label { color: #71717A; }
+.chart-tooltip .tt-val   { color: #18181B; font-weight: 500; }
+.chart-tooltip .tt-row--accent .tt-val { color: #09090B; font-weight: 600; }
+
+.combobox-item.is-highlighted {
+  background: #F4F4F5;
+}
+
+/* hover sobre barras/dots: sutil highlight */
+.chart-wrap svg g[data-name]:hover rect[fill="#09090B"],
+.chart-wrap svg g.stat-bar:hover rect:first-child,
+.chart-wrap svg g.stat-dot:hover circle:last-child {
+  filter: brightness(0.85);
+}
+
+/* ============================================
+   ADEUDO LIST (dashboard, con distinción vencidos/próximos)
+   ============================================ */
+.adeudo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.adeudo-group {
+  border: 1px solid #F4F4F5;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+.adeudo-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #F4F4F5;
+}
+.adeudo-group-label--overdue {
+  background: #FEF2F2;
+  color: #991B1B;
+}
+.adeudo-group-label--upcoming {
+  background: #FFFBEB;
+  color: #92400E;
+}
+.adeudo-group-label .count-pill {
+  margin-left: auto;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.adeudo-group-label--overdue .count-pill { background: #FEE2E2; color: #991B1B; }
+.adeudo-group-label--upcoming .count-pill { background: #FEF3C7; color: #92400E; }
+
+.adeudo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  transition: background 100ms;
+}
+.adeudo-item + .adeudo-item { border-top: 1px solid #FAFAFA; }
+.adeudo-item--overdue { background: #FFFFFF; }
+.adeudo-item--overdue:hover { background: #FAFAFA; }
+.adeudo-item--upcoming { background: #FFFFFF; }
+.adeudo-item--upcoming:hover { background: #FAFAFA; }
+
+.adeudo-item .ai-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #18181B;
+}
+.adeudo-item .ai-meta {
+  font-size: 11px;
+  color: #71717A;
+  margin-top: 1px;
+}
+
+.adeudo-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+}
+.adeudo-badge--overdue {
+  background: #FEE2E2;
+  color: #991B1B;
+  border-color: #FECACA;
+}
+.adeudo-badge--urgent {
+  background: #DC2626;
+  color: #FFFFFF;
+  border-color: #B91C1C;
+  animation: adeudo-pulse 2s ease-in-out infinite;
+}
+.adeudo-badge--upcoming {
+  background: #FEF3C7;
+  color: #92400E;
+  border-color: #FDE68A;
+}
+
+@keyframes adeudo-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
+  50%      { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0); }
+}
 .modal-backdrop {
   position: fixed;
   inset: 0;

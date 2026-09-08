@@ -5,6 +5,7 @@ import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, av
 import { players, payments } from '../services/firestore.js';
 import { classifyAdeudo, adeudoLabel } from '../services/adeudo.js';
 import { daysOverdue, formatMXN, formatDate, monthName } from '../utils/dates.js';
+import { getAutoPendingPeriod } from '../services/autoPending.js';
 import { openPaymentForm } from './payments.js';
 
 let _filter = { category: '', status: '', dayRange: '', search: '' };
@@ -151,14 +152,37 @@ function playerWithCurrentStatus(p) {
     Number(pay.year) === year &&
     Number(pay.month) === month
   );
-  const dias = daysOverdue(p);
+
+  // Fuente única de verdad para el estado: getAutoPendingPeriod considera
+  // mes actual + alerta + mes previo (si la alerta aún no llega) + mes siguiente.
+  const period = getAutoPendingPeriod(p, state.payments, today);
+
   let status = 'paid';
-  if (payment?.status === 'pending') {
-    status = dias > 0 ? 'adeudo' : 'pending';
-  } else if (!payment) {
-    if (dias > 0) status = 'adeudo';
-    else status = 'pending';
+  let dias = 0;
+
+  if (period) {
+    if (period.year === year && period.month === month) {
+      // Pendiente del mes actual
+      if (period.isOverdue) {
+        status = 'adeudo';
+        dias = Math.abs(period.daysUntilDue);
+      } else {
+        status = 'pending';
+        dias = 0;
+      }
+    } else {
+      // Pendiente de mes pasado (sin pagar) → adeudo
+      // Pendiente de mes siguiente (ya pagó este) → paid
+      if (period.isOverdue) {
+        status = 'adeudo';
+        dias = Math.abs(period.daysUntilDue);
+      } else {
+        status = 'paid';
+        dias = 0;
+      }
+    }
   }
+
   return { ...p, status, payment: payment || null, diasAdeudo: dias };
 }
 

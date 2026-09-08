@@ -72,13 +72,27 @@ export function getAutoPendingPeriod(player, payments, today) {
     };
   };
 
-  // 1. Mes actual
+  // 1. Mes actual: si la alerta ya pasó y NO está pagado → pendiente de este mes
   const cur = buildPeriod(year, month);
   if (t >= cur.alert && !paid(year, month)) {
     return finalize(year, month, cur.due, 'thisMonth');
   }
 
-  // 2. Si el mes actual está pagado, verificar el siguiente
+  // 2. Si la alerta del mes actual AÚN NO ha pasado:
+  //    → ¿se pagó el mes pasado? Si NO → adeudo del mes pasado.
+  //    Esto cubre el caso: hoy=Sep 8, payDay=15 (alerta Sep 12), Aug 15 sin pagar.
+  if (t < cur.alert) {
+    const prevM = month === 1 ? 12 : month - 1;
+    const prevY = month === 1 ? year - 1 : year;
+    if (!paid(prevY, prevM)) {
+      const prev = buildPeriod(prevY, prevM);
+      return finalize(prevY, prevM, prev.due, 'prevMonth');
+    }
+    // Mes pasado pagado y alerta de este aún no llega → nada pendiente
+    return null;
+  }
+
+  // 3. Mes actual pagado: revisar el siguiente
   if (paid(year, month)) {
     const nextM = month === 12 ? 1 : month + 1;
     const nextY = month === 12 ? year + 1 : year;

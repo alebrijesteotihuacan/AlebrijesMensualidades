@@ -263,7 +263,6 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
       const mAbs = currentMonth + i;
       const yAbs = currentYear + Math.floor((mAbs - 1) / 12);
       const realM = ((mAbs - 1) % 12 + 12) % 12 + 1;
-      const isCurrent = realM === currentMonth && yAbs === currentYear;
       const isPaid = selectedPlayer ? state.payments.some((pay) =>
         pay.playerId === selectedPlayer.id &&
         Number(pay.year) === yAbs &&
@@ -271,12 +270,11 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
         pay.status === 'paid'
       ) : false;
       const label = `${monthShort(realM - 1)} ${yAbs !== currentYear ? `'${String(yAbs).slice(-2)}` : ''}`;
-      chips.push({ y: yAbs, m: realM, label, isCurrent, isPaid });
+      chips.push({ y: yAbs, m: realM, label, isPaid });
     }
     return chips;
   }
 
-  // Renderiza el bloque de "Paso 1: Jugador"
   function renderPlayerBlock() {
     if (selectedPlayer) {
       return `
@@ -288,31 +286,22 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
           </div>
           <button type="button" data-change-player class="btn btn-ghost btn-sm">Cambiar</button>
         </div>
-        <input type="hidden" name="playerId" value="${selectedPlayer.id}" />
       `;
     }
     return `
       <div class="combobox">
-        <div class="relative">
-          <svg viewBox="0 0 20 20" fill="currentColor" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" aria-hidden="true">
-            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
-          </svg>
-          <input id="py-player-search" type="text" autocomplete="off" placeholder="Buscar jugador por nombre o teléfono..." class="input pl-9" />
-        </div>
+        <input id="py-player-search" type="text" autocomplete="off" placeholder="Buscar jugador por nombre o teléfono..." class="input" />
         <ul id="py-player-dropdown" class="combobox-dropdown" role="listbox" hidden></ul>
-        <input type="hidden" name="playerId" />
-        <p class="form-hint" id="player-hint">Empieza a escribir para ver coincidencias</p>
       </div>
     `;
   }
 
-  // Renderiza los chips de período
   function renderPeriodChips() {
     const chips = buildMonthChips();
     return `
       <div class="period-chips" role="radiogroup" aria-label="Mes del pago">
         ${chips.map((c) => `
-          <button type="button" 
+          <button type="button"
             class="period-chip ${(c.y === selYear && c.m === selMonth) ? 'is-active' : ''} ${c.isPaid ? 'is-paid' : ''}"
             data-period="${c.y}-${c.m}"
             ${c.isPaid ? 'disabled title="Este mes ya está pagado"' : ''}
@@ -322,8 +311,6 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
           </button>
         `).join('')}
       </div>
-      <input type="hidden" name="year" value="${selYear}" />
-      <input type="hidden" name="month" value="${selMonth}" />
     `;
   }
 
@@ -332,31 +319,27 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
 
   const body = `
     <form id="form-payment" class="flex flex-col gap-5" novalidate>
-      <!-- Paso 1: Jugador -->
       <div>
         <div class="step-label"><span class="step-num">1</span><span>Jugador</span></div>
         <div id="player-block">${renderPlayerBlock()}</div>
       </div>
 
-      <!-- Paso 2: Período -->
       <div>
         <div class="step-label"><span class="step-num">2</span><span>Período</span></div>
         <div id="period-block">${renderPeriodChips()}</div>
       </div>
 
-      <!-- Paso 3: Monto -->
       <div>
-        <label class="label" for="py-amount">3. Monto (MXN) *</label>
+        <div class="step-label"><span class="step-num">3</span><span>Monto</span></div>
         <input id="py-amount" name="amount" type="number" min="0" step="50" required inputmode="numeric" class="input tabular" value="${initialAmount}" placeholder="0" />
-        <p class="form-hint" id="amount-hint">${selectedPlayer ? `Mensualidad sugerida: ${escapeHTML(formatMXN(amountForPlayer(selectedPlayer)))}` : 'Selecciona un jugador'}</p>
+        <p class="form-hint" id="amount-hint">${selectedPlayer ? `Mensualidad sugerida: ${escapeHTML(formatMXN(amountForPlayer(selectedPlayer)))}` : 'Selecciona un jugador para sugerir monto'}</p>
       </div>
 
-      <!-- Paso 4: Fecha de pago -->
       <div>
-        <label class="label" for="py-paid-day">4. Día de pago</label>
+        <div class="step-label"><span class="step-num">4</span><span>Día de pago</span></div>
         <div class="flex items-center gap-2">
-          <input id="py-paid-day" name="paidDay" type="number" min="1" max="31" inputmode="numeric" class="input tabular" value="${initialDay}" placeholder="Día del mes" />
-          <button data-today type="button" class="btn btn-secondary shrink-0">Hoy</button>
+          <input id="py-paid-day" name="paidDay" type="number" min="1" max="31" inputmode="numeric" class="input tabular" value="${initialDay}" placeholder="Ej. 15" />
+          <button type="button" data-today class="btn btn-secondary shrink-0">Hoy</button>
         </div>
         <p class="form-hint" id="paid-hint">Déjalo vacío si el pago aún no se realiza (queda pendiente).</p>
       </div>
@@ -366,75 +349,93 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
   `;
 
   const footer = `
-    <button data-cancel type="button" class="btn btn-secondary">Cancelar</button>
-    <button data-save type="button" class="btn btn-primary">${editing ? 'Guardar cambios' : 'Registrar pago'}</button>
+    <button type="button" data-cancel class="btn btn-secondary">Cancelar</button>
+    <button type="button" data-save class="btn btn-primary">${editing ? 'Guardar cambios' : 'Registrar pago'}</button>
   `;
 
   const m = openModal({
     title: editing ? 'Editar pago' : 'Registrar pago',
     body,
     footer,
-    size: 'md',
+    size: 'lg',
   });
 
-  const form = m.panel.querySelector('#form-payment');
+  if (!m?.panel) {
+    console.error('[openPaymentForm] No se pudo abrir el modal');
+    return;
+  }
+
+  const panel = m.panel;
 
   // === Helpers ===
+  function updateAmountHint() {
+    const hint = panel.querySelector('#amount-hint');
+    if (!hint) return;
+    hint.textContent = selectedPlayer
+      ? `Mensualidad sugerida: ${formatMXN(amountForPlayer(selectedPlayer))}`
+      : 'Selecciona un jugador para sugerir monto';
+  }
+
   function repaintPlayer() {
-    m.panel.querySelector('#player-block').innerHTML = renderPlayerBlock();
+    panel.querySelector('#player-block').innerHTML = renderPlayerBlock();
     if (selectedPlayer) attachChangePlayer();
     else attachSearch();
     updateAmountHint();
   }
+
   function repaintChips() {
-    m.panel.querySelector('#period-block').innerHTML = renderPeriodChips();
+    panel.querySelector('#period-block').innerHTML = renderPeriodChips();
     attachChips();
-    updateAmountHint();
-  }
-  function updateAmountHint() {
-    const hint = m.panel.querySelector('#amount-hint');
-    if (!hint) return;
-    if (selectedPlayer) {
-      const amt = amountForPlayer(selectedPlayer);
-      hint.textContent = `Mensualidad sugerida: ${formatMXN(amt)}`;
-    } else {
-      hint.textContent = 'Selecciona un jugador';
-    }
   }
 
-  // === Jugador ===
+  // === Selección de jugador ===
   function attachChangePlayer() {
-    m.panel.querySelector('[data-change-player]')?.addEventListener('click', () => {
+    panel.querySelector('[data-change-player]')?.addEventListener('click', () => {
       selectedPlayer = null;
       repaintPlayer();
       repaintChips();
-      // Reset amount
-      const amtIn = form.querySelector('[name=amount]');
+      const amtIn = panel.querySelector('[name=amount]');
       if (amtIn && !editing) amtIn.value = '';
-      // Focus the search
-      setTimeout(() => m.panel.querySelector('#py-player-search')?.focus(), 50);
+      setTimeout(() => panel.querySelector('#py-player-search')?.focus(), 50);
     });
   }
 
+  function selectPlayer(id) {
+    const p = state.players.find((x) => x.id === id);
+    if (!p) return;
+    selectedPlayer = p;
+    const amtIn = panel.querySelector('[name=amount]');
+    if (amtIn && !amtIn.value && !editing) amtIn.value = amountForPlayer(p);
+    repaintPlayer();
+    repaintChips();
+    const input = panel.querySelector('#py-player-search');
+    if (input) input.value = '';
+    setTimeout(() => panel.querySelector('[name=amount]')?.focus(), 50);
+  }
+
   function attachSearch() {
-    const input = m.panel.querySelector('#py-player-search');
-    const dropdown = m.panel.querySelector('#py-player-dropdown');
+    const input = panel.querySelector('#py-player-search');
+    const dropdown = panel.querySelector('#py-player-dropdown');
     if (!input || !dropdown) return;
+
     let highlightedIdx = -1;
 
-    function render(query) {
+    function getMatches(query) {
       const q = (query || '').toLowerCase().trim();
-      const matches = state.players
+      return state.players
         .filter((p) => !p.exempt)
         .filter((p) => !q || p.name.toLowerCase().includes(q) || (p.phone || '').toLowerCase().includes(q))
         .slice(0, 8);
+    }
 
+    function render(query) {
+      const matches = getMatches(query);
+      highlightedIdx = matches.length > 0 ? 0 : -1;
       if (matches.length === 0) {
         dropdown.innerHTML = `<li class="combobox-empty">Sin resultados</li>`;
-        highlightedIdx = -1;
       } else {
         dropdown.innerHTML = matches.map((p, i) => `
-          <li class="combobox-item ${i === highlightedIdx ? '[aria-selected="true"]' : ''}" data-id="${p.id}" role="option">
+          <li class="combobox-item ${i === highlightedIdx ? 'is-highlighted' : ''}" data-id="${p.id}" role="option">
             <div class="avatar size-sm" style="${avatarGradient(p)}">${escapeHTML(initialsOf(p.name))}</div>
             <div class="flex-1 min-w-0">
               <p class="ci-name truncate">${escapeHTML(p.name)}</p>
@@ -444,44 +445,29 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
           </li>
         `).join('');
         dropdown.querySelectorAll('li[data-id]').forEach((li) => {
+          li.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            selectPlayer(li.dataset.id);
+          });
           li.addEventListener('mouseenter', () => {
             highlightedIdx = [...dropdown.querySelectorAll('li[data-id]')].indexOf(li);
             updateHighlight();
           });
-          li.addEventListener('click', () => selectPlayer(li.dataset.id));
         });
       }
       dropdown.hidden = false;
-      updateHighlight();
     }
 
     function updateHighlight() {
       dropdown.querySelectorAll('li[data-id]').forEach((li, i) => {
-        if (i === highlightedIdx) li.setAttribute('aria-selected', 'true');
-        else li.removeAttribute('aria-selected');
+        li.classList.toggle('is-highlighted', i === highlightedIdx);
       });
     }
 
-    function selectPlayer(id) {
-      const p = state.players.find((x) => x.id === id);
-      if (!p) return;
-      selectedPlayer = p;
-      // Set hidden playerId
-      const hidden = m.panel.querySelector('input[name=playerId]');
-      if (hidden) hidden.value = p.id;
-      // Pre-fill amount if empty
-      const amtIn = form.querySelector('[name=amount]');
-      if (amtIn && !amtIn.value && !editing) amtIn.value = amountForPlayer(p);
-      // Re-render player block + chips
-      repaintPlayer();
-      repaintChips();
-      dropdown.hidden = true;
-      input.value = '';
-      // Focus the next sensible field
-      setTimeout(() => form.querySelector('[name=amount]')?.focus(), 50);
-    }
+    function closeDropdown() { dropdown.hidden = true; }
 
-    input.addEventListener('input', () => { highlightedIdx = -1; render(input.value); });
+    input.addEventListener('input', () => { render(input.value); });
     input.addEventListener('focus', () => render(input.value));
     input.addEventListener('keydown', (e) => {
       const items = [...dropdown.querySelectorAll('li[data-id]')];
@@ -499,115 +485,95 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
           selectPlayer(items[highlightedIdx].dataset.id);
         }
       } else if (e.key === 'Escape') {
-        dropdown.hidden = true;
+        closeDropdown();
       }
     });
 
-    // Close on outside click
-    const closeOnOutside = (e) => {
-      if (!m.panel.contains(e.target)) dropdown.hidden = true;
+    // Cerrar al hacer click fuera (instalado una sola vez por sesión del form)
+    const onDocMouseDown = (e) => {
+      if (!panel.contains(e.target)) closeDropdown();
     };
-    setTimeout(() => document.addEventListener('mousedown', closeOnOutside), 0);
+    setTimeout(() => document.addEventListener('mousedown', onDocMouseDown), 0);
+    m._cleanup = () => document.removeEventListener('mousedown', onDocMouseDown);
   }
 
   // === Período (chips) ===
   function attachChips() {
-    m.panel.querySelectorAll('.period-chip:not([disabled])').forEach((chip) => {
+    panel.querySelectorAll('.period-chip:not([disabled])').forEach((chip) => {
       chip.addEventListener('click', () => {
-        const [y, m] = chip.dataset.period.split('-').map(Number);
+        const [y, mo] = chip.dataset.period.split('-').map(Number);
         selYear = y;
-        selMonth = m;
-        // Update hidden inputs
-        const yIn = form.querySelector('[name=year]');
-        const mIn = form.querySelector('[name=month]');
-        if (yIn) yIn.value = String(y);
-        if (mIn) mIn.value = String(m);
-        // Update active state
-        m.panel.querySelectorAll('.period-chip').forEach((c) => {
-          if (parseInt(c.dataset.period.split('-')[1], 10) === m && parseInt(c.dataset.period.split('-')[0], 10) === y) {
-            c.classList.add('is-active');
-          } else {
-            c.classList.remove('is-active');
-          }
+        selMonth = mo;
+        panel.querySelectorAll('.period-chip').forEach((c) => {
+          const [cy, cm] = c.dataset.period.split('-').map(Number);
+          c.classList.toggle('is-active', cy === y && cm === mo);
         });
-        // If day is empty, suggest player's paymentDay if applicable
-        const dayIn = form.querySelector('[name=paidDay]');
-        if (dayIn && !dayIn.value && selectedPlayer) {
-          const t = new Date();
-          const isCurrentMonth = selYear === t.getFullYear() && selMonth === (t.getMonth() + 1);
-          if (isCurrentMonth) dayIn.value = '';
-        }
       });
     });
   }
 
-  // === Hoy button ===
-  m.panel.querySelector('[data-today]')?.addEventListener('click', () => {
+  // === Botón Hoy ===
+  panel.querySelector('[data-today]')?.addEventListener('click', () => {
     const t = new Date();
     const isCurrentPeriod = selYear === t.getFullYear() && selMonth === (t.getMonth() + 1);
     let day;
     if (isCurrentPeriod) {
       day = t.getDate();
     } else {
-      const lastDay = new Date(t.getFullYear(), selMonth, 0).getDate();
-      day = lastDay;
+      day = new Date(selYear, selMonth, 0).getDate();
     }
-    const dayIn = form.querySelector('[name=paidDay]');
+    const dayIn = panel.querySelector('[name=paidDay]');
     if (dayIn) {
       dayIn.value = String(day);
-      dayIn.focus();
-      dayIn.select();
       dayIn.dispatchEvent(new Event('input', { bubbles: true }));
     }
   });
 
-  // === Day hint ===
+  // === Hint del día ===
   function syncPaidHint() {
-    const dayIn = form.querySelector('[name=paidDay]');
-    const hint = m.panel.querySelector('#paid-hint');
+    const dayIn = panel.querySelector('[name=paidDay]');
+    const hint = panel.querySelector('#paid-hint');
     if (!dayIn || !hint) return;
-    if (dayIn.value) {
-      hint.textContent = '✅ Se registrará como PAGADO en esa fecha.';
-    } else {
-      hint.textContent = 'Déjalo vacío si el pago aún no se realiza (queda pendiente).';
-    }
+    hint.textContent = dayIn.value
+      ? '✅ Se registrará como PAGADO en esa fecha.'
+      : 'Déjalo vacío si el pago aún no se realiza (queda pendiente).';
   }
-  form.querySelector('[name=paidDay]')?.addEventListener('input', syncPaidHint);
+  panel.querySelector('[name=paidDay]')?.addEventListener('input', syncPaidHint);
   syncPaidHint();
 
-  // === Initial attach ===
+  // === Init ===
   if (selectedPlayer) {
     attachChangePlayer();
     attachChips();
   } else {
     attachSearch();
     attachChips();
-    setTimeout(() => m.panel.querySelector('#py-player-search')?.focus(), 100);
+    setTimeout(() => panel.querySelector('#py-player-search')?.focus(), 100);
   }
 
-  // === Save / Cancel ===
-  m.panel.querySelector('[data-cancel]').addEventListener('click', m.close);
-  m.panel.querySelector('[data-save]').addEventListener('click', async () => {
-    const errEl = m.panel.querySelector('#py-error');
-    errEl.hidden = true;
+  // === Cancelar / Guardar ===
+  panel.querySelector('[data-cancel]')?.addEventListener('click', () => m.close());
+  panel.querySelector('[data-save]')?.addEventListener('click', async () => {
+    const errEl = panel.querySelector('#py-error');
+    if (errEl) errEl.hidden = true;
 
-    const playerIdIn = form.querySelector('[name=playerId]');
-    const amountIn   = form.querySelector('[name=amount]');
-    const dayIn      = form.querySelector('[name=paidDay]');
-
-    if (!playerIdIn?.value || !state.players.find((p) => p.id === playerIdIn.value)) {
+    if (!selectedPlayer) {
       showErr('Selecciona un jugador'); return;
     }
-    if (!amountIn.value || Number(amountIn.value) < 0) {
-      showErr('Monto inválido'); amountIn.focus(); return;
+    const amountIn = panel.querySelector('[name=amount]');
+    const dayIn    = panel.querySelector('[name=paidDay]');
+
+    const amountNum = Number(amountIn?.value);
+    if (!Number.isFinite(amountNum) || amountNum < 0) {
+      showErr('Monto inválido'); amountIn?.focus(); return;
     }
 
-    const dayVal = dayIn.value.trim();
+    const dayVal = (dayIn?.value || '').trim();
     let paidDate = null;
     if (dayVal !== '') {
       const d = Number(dayVal);
       if (!Number.isFinite(d) || d < 1 || d > 31) {
-        showErr('El día debe estar entre 1 y 31'); dayIn.focus(); return;
+        showErr('El día debe estar entre 1 y 31'); dayIn?.focus(); return;
       }
       const lastDay = new Date(selYear, selMonth, 0).getDate();
       const safeDay = Math.min(d, lastDay);
@@ -615,13 +581,17 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
     }
 
     const data = {
-      playerId: playerIdIn.value,
+      playerId: selectedPlayer.id,
       year:      selYear,
       month:     selMonth,
-      amount:    Number(amountIn.value),
+      amount:    amountNum,
       status:    paidDate ? 'paid' : 'pending',
       paidDate,
     };
+
+    const saveBtn = panel.querySelector('[data-save]');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Guardando…'; }
+
     try {
       if (editing) {
         await payments.update(editing.id, data);
@@ -632,15 +602,27 @@ export function openPaymentForm(id, preSelectedPlayerId = null) {
       }
       m.close();
     } catch (e) {
-      console.error(e);
+      console.error('[openPaymentForm] save error', e);
       toast('Error al guardar', 'error');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = editing ? 'Guardar cambios' : 'Registrar pago';
+      }
     }
 
     function showErr(msg) {
+      if (!errEl) return;
       errEl.textContent = msg;
       errEl.hidden = false;
     }
   });
+
+  // === Limpieza al cerrar ===
+  const _origClose = m.close;
+  m.close = () => {
+    try { m._cleanup && m._cleanup(); } catch (_) {}
+    _origClose();
+  };
 }
 
 // === EXPORTAR ===

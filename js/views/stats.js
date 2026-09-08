@@ -66,8 +66,8 @@ function paint(root) {
         </div>
         <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-100">
           ${statBlock('Recaudado', formatMXN(stats.recaudado), `${stats.cobradoPct}% cobrado`, 'success')}
-          ${statBlock('Pendiente', formatMXN(stats.pendiente), `${stats.pendientePagos} pagos`, 'warning')}
-          ${statBlock('Cobrado',   `${stats.cobradoPct}%`,    `${stats.cobradoPagos} de ${stats.totalPagos}`, stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger')}
+          ${statBlock('Pendiente', formatMXN(stats.pendiente), `${stats.pendientePagos} pago${stats.pendientePagos === 1 ? '' : 's'} sin completar`, 'warning')}
+          ${statBlock('% Cobrado',   `${stats.cobradoPct}%`,    `${stats.cobradoPagos} de ${stats.totalPagos} pago${stats.totalPagos === 1 ? '' : 's'}`, stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger')}
           ${statBlock('Jugadores', stats.jugadoresUnicos,      `con al menos un pago`)}
         </div>
       </div>
@@ -83,7 +83,7 @@ function paint(root) {
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           ${compareBlock('Recaudado', formatMXN(stats.recaudado), formatMXN(prev.recaudado), deltaPct(stats.recaudado, prev.recaudado))}
           ${compareBlock('Pendiente', formatMXN(stats.pendiente), formatMXN(prev.pendiente), deltaPct(stats.pendiente, prev.pendiente))}
-          ${compareBlock('Cobrado %', `${stats.cobradoPct}%`,     `${prev.cobradoPct}%`,     stats.cobradoPct - prev.cobradoPct, true)}
+          ${compareBlock('% Cobrado', `${stats.cobradoPct}%`,     `${prev.cobradoPct}%`,     stats.cobradoPct - prev.cobradoPct, true)}
         </div>
       </div>
 
@@ -97,6 +97,7 @@ function paint(root) {
           <span class="text-xs text-zinc-500 tabular-nums">Total: ${formatMXN(bars.total)}</span>
         </div>
         ${barsChart(bars)}
+        <p class="text-[11px] text-zinc-500 mt-3">Pasa el cursor sobre una barra para ver el detalle del mes.</p>
       </div>
 
       <!-- GRÁFICA DE LÍNEAS: % cobrado por mes -->
@@ -109,6 +110,7 @@ function paint(root) {
           <span class="text-xs text-zinc-500 tabular-nums">Promedio: ${lines.avg}%</span>
         </div>
         ${linesChart(lines)}
+        <p class="text-[11px] text-zinc-500 mt-3">Pasa el cursor sobre un punto para ver el detalle del mes.</p>
       </div>
 
       <!-- Por categoría del período -->
@@ -157,6 +159,9 @@ function paint(root) {
     _filter = { year: t.getFullYear(), month: String(t.getMonth() + 1) };
     paint(root);
   });
+
+  // Wire chart hover tooltips
+  wireStatsTooltip(root);
 }
 
 // ============ COMPONENTES UI ============ //
@@ -244,9 +249,11 @@ function barsChart(data) {
     const y = padT + plotH - h;
     const isZero = v === 0;
     return `
-      <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h, 1)}"
-            fill="${isZero ? '#E4E4E7' : '#09090B'}" rx="2" />
-      <title>${escapeHTML(data.labels[i])}: ${escapeHTML(formatMXN(v))}</title>
+      <g class="stat-bar" data-label="${escapeHTML(data.labels[i])}" data-value="${v}" style="cursor:pointer;">
+        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h, 1)}"
+              fill="${isZero ? '#E4E4E7' : '#09090B'}" rx="2" />
+        <rect class="stat-bar-hit" x="${padL + stepX * i}" y="${padT}" width="${stepX}" height="${plotH}" fill="transparent" />
+      </g>
     `;
   }).join('');
   const xLabels = data.labels.map((lab, i) => {
@@ -255,13 +262,16 @@ function barsChart(data) {
   }).join('');
 
   return `
-    <div class="w-full overflow-x-auto">
-      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras: recaudación por mes" class="w-full h-auto" style="min-width: 480px;">
-        ${gridLines.join('')}
-        ${yLabels.join('')}
-        ${bars}
-        ${xLabels}
-      </svg>
+    <div class="chart-wrap" data-chart="stats-bars">
+      <div class="w-full overflow-x-auto">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras: recaudación por mes" class="w-full h-auto" style="min-width: 480px;">
+          ${gridLines.join('')}
+          ${yLabels.join('')}
+          ${bars}
+          ${xLabels}
+        </svg>
+      </div>
+      <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
     </div>
   `;
 }
@@ -311,9 +321,10 @@ function linesChart(data) {
 
   // Puntos
   const dots = points.map((p) => `
-    <circle cx="${p.x}" cy="${p.y}" r="3" fill="white" stroke="#09090B" stroke-width="1.5">
-      <title>${escapeHTML(p.lab)}: ${p.v}%</title>
-    </circle>
+    <g class="stat-dot" data-label="${escapeHTML(p.lab)}" data-value="${p.v}" style="cursor:pointer;">
+      <circle cx="${p.x}" cy="${p.y}" r="14" fill="transparent" />
+      <circle cx="${p.x}" cy="${p.y}" r="3" fill="white" stroke="#09090B" stroke-width="1.5" />
+    </g>
   `).join('');
 
   // Si no hay datos válidos (todos 0), mensaje sutil
@@ -328,18 +339,70 @@ function linesChart(data) {
   }).join('');
 
   return `
-    <div class="w-full overflow-x-auto">
-      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto" style="min-width: 480px;">
-        ${gridLines.join('')}
-        ${yLabels.join('')}
-        ${linePath}
-        ${avgLine}
-        ${dots}
-        ${emptyMsg}
-        ${xLabels}
-      </svg>
+    <div class="chart-wrap" data-chart="stats-lines">
+      <div class="w-full overflow-x-auto">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto" style="min-width: 480px;">
+          ${gridLines.join('')}
+          ${yLabels.join('')}
+          ${linePath}
+          ${avgLine}
+          ${dots}
+          ${emptyMsg}
+          ${xLabels}
+        </svg>
+      </div>
+      <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
     </div>
   `;
+}
+
+// ============ TOOLTIPS DE GRÁFICAS ============ //
+
+function wireStatsTooltip(root) {
+  root.querySelectorAll('.chart-wrap').forEach((wrap) => {
+    const tip = wrap.querySelector('.chart-tooltip');
+    if (!tip) return;
+    const chartKind = wrap.dataset.chart;
+    wrap.querySelectorAll('[data-label]').forEach((node) => {
+      node.addEventListener('mouseenter', (e) => {
+        const label = node.dataset.label;
+        const value = node.dataset.value;
+        if (chartKind === 'stats-bars') {
+          tip.innerHTML = `
+            <p class="tt-title">${escapeHTML(label)}</p>
+            <div class="tt-rows">
+              <div class="tt-row tt-row--accent"><span class="tt-label">Recaudado</span><span class="tt-val tabular-nums">${escapeHTML(formatMXN(Number(value)))}</span></div>
+            </div>
+          `;
+        } else {
+          tip.innerHTML = `
+            <p class="tt-title">${escapeHTML(label)}</p>
+            <div class="tt-rows">
+              <div class="tt-row tt-row--accent"><span class="tt-label">% Cobrado</span><span class="tt-val tabular-nums">${value}%</span></div>
+            </div>
+          `;
+        }
+        tip.classList.add('is-visible');
+      });
+      node.addEventListener('mousemove', (e) => {
+        positionTooltip(e, wrap, tip);
+      });
+      node.addEventListener('mouseleave', () => {
+        tip.classList.remove('is-visible');
+      });
+    });
+  });
+}
+
+function positionTooltip(e, wrap, tip) {
+  const rect = wrap.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const tipRect = tip.getBoundingClientRect();
+  const left = Math.min(Math.max(8, x - tipRect.width / 2), rect.width - tipRect.width - 8);
+  const top  = Math.max(8, y - tipRect.height - 12);
+  tip.style.left = `${left}px`;
+  tip.style.top  = `${top}px`;
 }
 
 // ============ CALCULOS ============ //

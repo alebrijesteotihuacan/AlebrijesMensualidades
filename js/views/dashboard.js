@@ -132,23 +132,43 @@ export function renderDashboard(root) {
         </div>
 
         <div class="card card-pad">
-          <div class="flex items-start justify-between mb-3">
+          <div class="flex items-start justify-between mb-4">
             <div>
               <p class="section-eyebrow">Atención prioritaria</p>
-              <h2 class="text-base font-semibold mt-1">Adeudos</h2>
+              <h2 class="text-base font-semibold mt-1">Adeudos &amp; Próximos</h2>
             </div>
-            <div class="text-right">
-              <p class="text-[11px] uppercase tracking-wider text-zinc-500 tabular-nums">${stats.morosos} vencido${stats.morosos === 1 ? '' : 's'} · ${stats.currentPending} próximo${stats.currentPending === 1 ? '' : 's'}</p>
+            <div class="flex items-center gap-3 text-[11px] uppercase tracking-wider tabular-nums">
+              <span class="status"><span class="status-dot dot-danger"></span><span>${stats.morosos} vencido${stats.morosos === 1 ? '' : 's'}</span></span>
+              <span class="status"><span class="status-dot dot-warning"></span><span>${stats.upcoming} próximo${stats.upcoming === 1 ? '' : 's'}</span></span>
             </div>
           </div>
           ${stats.adeudosList.length === 0
-            ? `<div class="text-center py-6">
-                <p class="status"><span class="status-dot dot-success"></span><span>Sin adeudos — todos están al día</span></p>
+            ? `<div class="text-center py-8">
+                <span class="status"><span class="status-dot dot-success"></span><span class="text-zinc-700">Sin adeudos — todos están al día</span></span>
               </div>`
-            : `<div class="flex flex-col">
-                ${stats.adeudosList.map(adeudoRow).join('')}
+            : `<div class="adeudo-list">
+                ${stats.adeudosVencidos.length > 0 ? `
+                  <div class="adeudo-group">
+                    <div class="adeudo-group-label adeudo-group-label--overdue">
+                      <span class="status-dot dot-danger"></span>
+                      <span>Vencidos</span>
+                      <span class="count-pill">${stats.adeudosVencidos.length}</span>
+                    </div>
+                    ${stats.adeudosVencidos.map((it) => adeudoRow(it, 'overdue')).join('')}
+                  </div>
+                ` : ''}
+                ${stats.adeudosProximos.length > 0 ? `
+                  <div class="adeudo-group">
+                    <div class="adeudo-group-label adeudo-group-label--upcoming">
+                      <span class="status-dot dot-warning"></span>
+                      <span>Próximos a vencer</span>
+                      <span class="count-pill">${stats.adeudosProximos.length}</span>
+                    </div>
+                    ${stats.adeudosProximos.map((it) => adeudoRow(it, 'upcoming')).join('')}
+                  </div>
+                ` : ''}
               </div>
-              <a href="#/players" class="btn btn-ghost btn-sm mt-3 self-end">Ver todos →</a>`
+              <a href="#/players" class="btn btn-ghost btn-sm mt-4 self-end">Ver todos →</a>`
           }
         </div>
       </div>
@@ -182,6 +202,58 @@ export function renderDashboard(root) {
       openMessageMenu(btn, player, { amount: amountForPlayer(player) });
     });
   });
+
+  // Wire chart hover tooltips (categorías)
+  wireChartTooltip(root, '[data-chart="cat-bars"]', (group) => ({
+    name:  group.dataset.name,
+    paid:  Number(group.dataset.paid),
+    pending: Number(group.dataset.pending),
+    expected: Number(group.dataset.expected),
+    pct:   Number(group.dataset.pct),
+    count: Number(group.dataset.count),
+  }), (d) => `
+    <p class="tt-title">${escapeHTML(d.name)}</p>
+    <div class="tt-rows">
+      <div class="tt-row"><span class="tt-label">Cobrado</span><span class="tt-val tabular-nums">${escapeHTML(formatMXN(d.paid))}</span></div>
+      <div class="tt-row"><span class="tt-label">Por cobrar</span><span class="tt-val tabular-nums">${escapeHTML(formatMXN(d.pending))}</span></div>
+      <div class="tt-row"><span class="tt-label">Esperado</span><span class="tt-val tabular-nums text-zinc-500">${escapeHTML(formatMXN(d.expected))}</span></div>
+      <div class="tt-row tt-row--accent"><span class="tt-label">% Cobrado</span><span class="tt-val tabular-nums">${d.pct}%</span></div>
+      <div class="tt-row"><span class="tt-label">Jugadores</span><span class="tt-val tabular-nums text-zinc-500">${d.count}</span></div>
+    </div>
+  `);
+}
+
+function wireChartTooltip(root, wrapSel, readData, renderHtml) {
+  const wrap = root.querySelector(wrapSel);
+  if (!wrap) return;
+  const tip = wrap.querySelector('.chart-tooltip');
+  if (!tip) return;
+
+  const groups = wrap.querySelectorAll('g[data-name]');
+  groups.forEach((g) => {
+    g.addEventListener('mouseenter', (e) => {
+      const data = readData(g);
+      tip.innerHTML = renderHtml(data);
+      tip.classList.add('is-visible');
+    });
+    g.addEventListener('mousemove', (e) => {
+      positionTooltip(e, wrap, tip);
+    });
+    g.addEventListener('mouseleave', () => {
+      tip.classList.remove('is-visible');
+    });
+  });
+}
+
+function positionTooltip(e, wrap, tip) {
+  const rect = wrap.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const tipRect = tip.getBoundingClientRect();
+  const left = Math.min(Math.max(8, x - tipRect.width / 2), rect.width - tipRect.width - 8);
+  const top  = Math.max(8, y - tipRect.height - 12);
+  tip.style.left = `${left}px`;
+  tip.style.top  = `${top}px`;
 }
 
 // ============ COMPONENTES ============ //
@@ -248,7 +320,7 @@ function categoryBarsChart(cats) {
     const yPendingTop = yPaidTop - (expectedH - paidH);
 
     return `
-      <g>
+      <g class="cat-bar" data-name="${escapeHTML(c.name)}" data-paid="${paid}" data-pending="${Math.max(expected - paid, 0)}" data-expected="${expected}" data-pct="${pct}" data-count="${c.count}" style="cursor:pointer;">
         <!-- Track (outline de la barra esperada, para categorías con poco cobro) -->
         ${expected === 0 ? `
           <rect x="${x}" y="${padT + plotH - 4}" width="${barW}" height="4" fill="#E4E4E7" rx="2" />
@@ -260,7 +332,8 @@ function categoryBarsChart(cats) {
         `}
         <!-- Indicador de % (dot encima del bar) -->
         ${expected > 0 ? `<circle cx="${x + barW / 2}" cy="${yPaidTop - 1}" r="4" fill="${dotColor}" stroke="#FFFFFF" stroke-width="2" />` : ''}
-        <title>${escapeHTML(c.name)} · ${pct}% cobrado · ${formatMXN(paid)} de ${formatMXN(expected)} · ${c.count} jugador${c.count === 1 ? '' : 'es'}</title>
+        <!-- Overlay invisible para capturar hover en todo el alto del plot -->
+        <rect class="cat-bar-hit" x="${padL + stepX * i}" y="${padT}" width="${stepX}" height="${plotH}" fill="transparent" />
       </g>
     `;
   }).join('');
@@ -279,13 +352,16 @@ function categoryBarsChart(cats) {
   }).join('');
 
   return `
-    <div class="w-full overflow-x-auto">
-      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras vertical: cobranza por categoría" class="w-full h-auto" style="min-width: 480px;">
-        ${gridLines.join('')}
-        ${yLabels.join('')}
-        ${bars}
-        ${xLabels}
-      </svg>
+    <div class="chart-wrap" data-chart="cat-bars">
+      <div class="w-full overflow-x-auto">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras vertical: cobranza por categoría" class="w-full h-auto" style="min-width: 480px;">
+          ${gridLines.join('')}
+          ${yLabels.join('')}
+          ${bars}
+          ${xLabels}
+        </svg>
+      </div>
+      <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
     </div>
     <div class="flex flex-wrap items-center gap-4 mt-5 pt-4 border-t border-zinc-100 text-xs text-zinc-600">
       <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm bg-zinc-900"></span>Cobrado</span>
@@ -316,26 +392,27 @@ function compactMoney(n) {
   return `$${n.toFixed(0)}`;
 }
 
-function adeudoRow(item) {
+function adeudoRow(item, kind) {
   const p = item.player;
   const absDays = Math.abs(item.daysUntilDue);
   const dotClass = item.isOverdue
     ? (absDays >= 5 ? 'dot-danger' : 'dot-warning')
-    : 'dot-neutral';
+    : 'dot-warning';
   const statusText = item.isOverdue
     ? `${absDays}d vencido`
     : `En ${absDays}d`;
+  const badgeClass = item.isOverdue
+    ? (absDays >= 5 ? 'adeudo-badge adeudo-badge--urgent' : 'adeudo-badge adeudo-badge--overdue')
+    : 'adeudo-badge adeudo-badge--upcoming';
   return `
-    <div class="moroso-row">
-      <div class="avatar size-md" style="${avatarGradient(p)}">${escapeHTML(initialsOf(p.name))}</div>
+    <div class="adeudo-item adeudo-item--${kind}">
+      <div class="avatar size-sm" style="${avatarGradient(p)}" aria-hidden="true">${escapeHTML(initialsOf(p.name))}</div>
       <div class="min-w-0 flex-1">
-        <p class="moroso-name">${escapeHTML(p.name)}</p>
-        <p class="moroso-meta">${escapeHTML(p.category || '—')} · día ${p.paymentDay || '—'}</p>
+        <p class="ai-name truncate">${escapeHTML(p.name)}</p>
+        <p class="ai-meta truncate">${escapeHTML(p.category || 'Sin categoría')} · día ${p.paymentDay || '—'}</p>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="status"><span class="status-dot ${dotClass}"></span><span class="tabular-nums">${escapeHTML(statusText)}</span></span>
-        <button data-msg-moroso="${p.id}" type="button" class="icon-btn" aria-label="Copiar mensaje para ${escapeHTML(p.name)}">${ICON.copy}</button>
-      </div>
+      <span class="${badgeClass} tabular-nums">${escapeHTML(statusText)}</span>
+      <button data-msg-moroso="${p.id}" type="button" class="icon-btn" aria-label="Copiar mensaje para ${escapeHTML(p.name)}">${ICON.copy}</button>
     </div>
   `;
 }
@@ -402,7 +479,12 @@ function computeStats(current) {
       isOverdue: ap.isOverdue,
     }))
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue) // más urgentes primero
-    .slice(0, 6);
+    .slice(0, 8);
+
+  // División para la UI: vencidos arriba (rojo), próximos abajo (ámbar)
+  const adeudosVencidos = adeudosList.filter((it) => it.isOverdue);
+  const adeudosProximos = adeudosList.filter((it) => !it.isOverdue);
+  const upcoming = adeudosProximos.length;
 
   // ===== Economía del club =====
   // Recaudado del período: solo pagos PAGADOS del mes actual
@@ -444,7 +526,10 @@ function computeStats(current) {
     currentPending,
     currentPct,
     morosos,
+    upcoming,
     adeudosList,
+    adeudosVencidos,
+    adeudosProximos,
     collectedThisPeriod,
     expectedThisPeriod,
     collectedPct,
