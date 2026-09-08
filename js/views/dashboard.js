@@ -30,7 +30,7 @@ export function renderDashboard(root) {
           ${statBlock('Total jugadores',  stats.totalPlayers,  'Registrados en el club')}
           ${statBlock('Al día',           stats.currentPaid,   `${stats.currentPct}% del período`, 'success')}
           ${statBlock('Pendientes',       stats.currentPending,'Falta por cobrar', 'warning')}
-          ${statBlock('En mora',          stats.morosos,       'Con atraso activo', 'danger')}
+          ${statBlock('Adeudo',           stats.morosos,       'Con atraso activo', 'danger')}
         </div>
       </div>
 
@@ -58,10 +58,10 @@ export function renderDashboard(root) {
 
         <div class="card card-pad">
           <p class="section-eyebrow">Atención prioritaria</p>
-          <h2 class="text-base font-semibold mt-1 mb-3">Morosos</h2>
+          <h2 class="text-base font-semibold mt-1 mb-3">Adeudos</h2>
           ${stats.morososList.length === 0
             ? `<div class="text-center py-6">
-                <p class="status"><span class="status-dot dot-success"></span><span>Sin morosos — todos están al día</span></p>
+                <p class="status"><span class="status-dot dot-success"></span><span>Sin adeudos — todos están al día</span></p>
               </div>`
             : `<div class="flex flex-col">
                 ${stats.morososList.map(morosoRow).join('')}

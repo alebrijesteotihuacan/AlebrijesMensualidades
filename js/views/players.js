@@ -1,7 +1,7 @@
 // js/views/players.js
 // Vista Jugadores: cards minimalistas, planas, monocromas.
 
-import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName } from '../app.js';
+import { state, toast, openModal, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
 import { players, payments } from '../services/firestore.js';
 import { classifyMora, moraLabel } from '../services/mora.js';
 import { daysMora, formatMXN, getCurrentQuincena } from '../utils/dates.js';
@@ -195,9 +195,9 @@ function playerCard(p) {
       </div>
 
       ${p.phone ? `
-        <a href="tel:${escapeHTML(p.phone)}" class="flex items-center justify-between border-t border-zinc-100 pt-3 hover:text-zinc-950">
-          <span class="player-phone">${ICON.phone}<span>${escapeHTML(p.phone)}</span></span>
-          <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Llamar</span>
+        <a href="${toWhatsAppUrl(p.phone)}" target="_blank" rel="noopener noreferrer" aria-label="Enviar mensaje de WhatsApp a ${escapeHTML(p.name)}" class="flex items-center justify-between border-t border-zinc-100 pt-3 hover:text-zinc-950">
+          <span class="player-phone">${ICON.whatsapp}<span>${escapeHTML(p.phone)}</span></span>
+          <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Mensaje</span>
         </a>` : ''}
 
       <!-- Action -->
