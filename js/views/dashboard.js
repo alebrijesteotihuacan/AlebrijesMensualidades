@@ -3,6 +3,7 @@
 
 import { state, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer } from '../app.js';
 import { classifyMora } from '../services/mora.js';
+import { getAutoPendingPeriod, getAllAutoPending, classifyPlayersByStatus } from '../services/autoPending.js';
 import { formatMXN, getCurrentQuincena, quincenaLabel, monthYearLabel, daysMora } from '../utils/dates.js';
 
 export function renderDashboard(root) {
@@ -27,10 +28,10 @@ export function renderDashboard(root) {
       <!-- STATS (4 inline) -->
       <div class="card card-pad">
         <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-100">
-          ${statBlock('Total jugadores',  stats.totalPlayers,  'Registrados en el club')}
+          ${statBlock('Total jugadores',  stats.totalPlayers,  `${stats.exempt} exento${stats.exempt === 1 ? '' : 's'}`)}
           ${statBlock('Al día',           stats.currentPaid,   `${stats.currentPct}% del período`, 'success')}
-          ${statBlock('Pendientes',       stats.currentPending,'Falta por cobrar', 'warning')}
-          ${statBlock('Adeudo',           stats.morosos,       'Con atraso activo', 'danger')}
+          ${statBlock('Pendientes',       stats.currentPending,'Alerta pasada · sin pagar', 'warning')}
+          ${statBlock('Adeudo',           stats.morosos,       'Día de pago vencido', 'danger')}
         </div>
       </div>
 
@@ -319,36 +320,46 @@ function initialsOf(name) {
 // ============ CALCULOS ============ //
 
 function computeStats(current) {
+  const today    = new Date();
   const players  = state.players;
   const payments = state.payments;
   const cats     = state.categories;
 
   const totalPlayers = players.length;
+  const exemptCount  = players.filter((p) => p.exempt).length;
 
-  const currentKey = (p) => `${p.year}-${p.quincena}`;
-  const curKey     = `${current.year}-${current.quincena}`;
-  const currentPeriod = payments.filter((p) => currentKey(p) === curKey);
+  // Filtra pagos del mes actual (por month en vez de quincena)
+  const currentMonthPayments = payments.filter(
+    (p) => Number(p.year) === current.year && Number(p.month) === current.month
+  );
 
   const byCategory = cats.map((c) => {
     const playersInCat = players.filter((p) => p.category === c.name);
     const playerIds = new Set(playersInCat.map((p) => p.id));
-    const inPeriod  = currentPeriod.filter((p) => playerIds.has(p.playerId));
+    const inPeriod  = currentMonthPayments.filter((p) => playerIds.has(p.playerId));
     const paid      = inPeriod.filter((p) => p.status === 'paid').length;
     const pending   = playersInCat.length - paid;
     return { name: c.name, amount: Number(c.amount) || 0, paid, pending, count: playersInCat.length };
   });
 
-  const currentPaid    = currentPeriod.filter((p) => p.status === 'paid').length;
-  const currentPending = currentPeriod.filter((p) => p.status === 'pending').length;
-  const currentTotal   = currentPaid + currentPending;
+  // ===== Auto-pending (virtual) — generado por paymentDay =====
+  const status = classifyPlayersByStatus(players, payments, today, current);
+
+  // Al día: jugadores cuyo mes actual está pagado (real 'paid') o aún sin alerta
+  const currentPaid    = status.paid + status.beforeAlert;
+  // Pendientes: virtual pending del mes actual, aún no vencidos
+  const currentPending = status.pending;
+  // Adeudo: virtual pending del mes actual, ya vencidos
+  const morosos        = status.overdue;
+  const currentTotal   = currentPaid + currentPending + morosos;
   const currentPct     = currentTotal ? Math.round((currentPaid / currentTotal) * 100) : 0;
 
-  const morososList = players
-    .map((p) => ({ ...p, _dias: daysMora(p) }))
-    .filter((p) => p._dias > 0)
+  // Top 5 más atrasados (de la lista virtual de adeudos del mes actual)
+  const morososList = getAllAutoPending(players, payments, today, amountForPlayer)
+    .filter((ap) => ap.year === current.year && ap.month === current.month && ap.isOverdue)
+    .map((ap) => ({ ...ap.player, _dias: Math.round((today - ap.dueDate) / 86400000) }))
     .sort((a, b) => b._dias - a._dias)
     .slice(0, 5);
-  const morosos = players.filter((p) => classifyMora(p) !== 'recordatorio').length;
 
   // ===== Economía del club =====
   // Recaudado del período: solo pagos PAGADOS de la quincena actual
@@ -385,6 +396,7 @@ function computeStats(current) {
 
   return {
     totalPlayers,
+    exempt: exemptCount,
     currentPaid,
     currentPending,
     currentPct,
