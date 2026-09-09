@@ -1308,6 +1308,71 @@
   flex-shrink: 0;
   margin-left: 4px;
 }
+
+/* Footer con switch para incluir imagen CLABE */
+.msg-menu-footer {
+  padding: 8px 12px 10px;
+  border-top: 1px solid #F4F4F5;
+  background: #FAFAFA;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+.msg-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px;
+  border-radius: 8px;
+  transition: background-color 0.1s;
+}
+.msg-toggle:hover { background: #F4F4F5; }
+.msg-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.msg-toggle-track {
+  width: 32px;
+  height: 18px;
+  background: #D4D4D8;
+  border-radius: 9999px;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 0.15s;
+}
+.msg-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #FFFFFF;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+  transition: left 0.15s;
+}
+.msg-toggle input:checked + .msg-toggle-track {
+  background: #09090B;
+}
+.msg-toggle input:checked + .msg-toggle-track .msg-toggle-knob {
+  left: 16px;
+}
+.msg-toggle-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.msg-toggle-title {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #09090B;
+  line-height: 1.2;
+}
+.msg-toggle-sub {
+  font-size: 0.68rem;
+  color: #71717A;
+  margin-top: 1px;
+  line-height: 1.2;
+}
 .msg-backdrop {
   position: fixed;
   inset: 0;

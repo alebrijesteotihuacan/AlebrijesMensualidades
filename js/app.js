@@ -376,7 +376,7 @@ export function availableMsgLevels(player, classifyFn) {
  */
 export function openMessageMenu(anchor, player, payment = {}) {
   closeMessageMenu();
-  import('./services/messages.js').then(({ renderMessage, copyToClipboard }) => {
+  import('./services/messages.js').then(({ renderMessage, copyToClipboard, copyMessageAndImage }) => {
     import('./services/adeudo.js').then(({ classifyAdeudo }) => {
       const levels = availableMsgLevels(player, classifyAdeudo);
       if (levels.length === 0) {
@@ -407,7 +407,21 @@ export function openMessageMenu(anchor, player, payment = {}) {
         `;
       }).join('');
 
-      menu.innerHTML = itemHTML;
+      // Footer con switch: copiar también la imagen CLABE
+      const footerHTML = `
+        <div class="msg-menu-footer">
+          <label class="msg-toggle" title="Adjuntar la imagen con los datos bancarios">
+            <input type="checkbox" id="msg-toggle-clabe" />
+            <span class="msg-toggle-track"><span class="msg-toggle-knob"></span></span>
+            <span class="msg-toggle-text">
+              <span class="msg-toggle-title">Copiar con imagen</span>
+              <span class="msg-toggle-sub">Adjunta la CLABE al mensaje</span>
+            </span>
+          </label>
+        </div>
+      `;
+
+      menu.innerHTML = itemHTML + footerHTML;
       document.body.appendChild(menu);
 
       const mw = 320, mh = menu.offsetHeight || 200;
@@ -426,6 +440,11 @@ export function openMessageMenu(anchor, player, payment = {}) {
       backdrop.addEventListener('click', closeMessageMenu);
       document.addEventListener('keydown', escClose);
 
+      // El switch vive dentro del menu: clicks en él no deben disparar un nivel
+      const toggle = menu.querySelector('#msg-toggle-clabe');
+      const toggleLabel = menu.querySelector('.msg-toggle');
+      toggleLabel.addEventListener('click', (e) => e.stopPropagation());
+
       menu.querySelectorAll('[data-level]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const level = btn.dataset.level;
@@ -442,9 +461,22 @@ export function openMessageMenu(anchor, player, payment = {}) {
             effectivePlayer = { ...player, paymentDay: player.paymentDay - offset };
           }
           const { text } = renderMessage(effectivePlayer, fakePayment, today);
+          const levelLabel = btn.querySelector('.msg-title').textContent;
+          const withImage = toggle.checked;
+
           try {
-            await copyToClipboard(text);
-            toast(`Mensaje copiado (${btn.querySelector('.msg-title').textContent})`, 'success', 2500);
+            if (withImage) {
+              const res = await copyMessageAndImage(text);
+              const imgNote = res.method === 'image-download'
+                ? ' (texto copiado · imagen descargada)'
+                : res.method === 'image-only'
+                  ? ' (imagen copiada, pega el texto aparte)'
+                  : ' + imagen';
+              toast(`Mensaje${imgNote} (${levelLabel})`, 'success', 3000);
+            } else {
+              await copyToClipboard(text);
+              toast(`Mensaje copiado (${levelLabel})`, 'success', 2500);
+            }
           } catch (e) {
             console.error(e);
             toast('No se pudo copiar', 'error');

@@ -223,86 +223,24 @@ export async function copyToClipboard(text) {
 
 // ============ IMAGEN CLABE ============ //
 
+/** URL de la imagen CLABE pre-diseñada en /assets. */
+export const CLABE_IMAGE_URL = 'assets/clabe.png';
+
+/** Cache del Blob de la imagen para no re-fetchear en cada copy. */
+let _clabeBlobPromise = null;
+
 /**
- * Genera una imagen PNG con los datos bancarios del club (Banco, Titular, CLABE, Concepto).
- * Usa Canvas API; funciona sin librerías externas.
+ * Devuelve un Blob PNG con la imagen CLABE oficial del club (cacheado).
  * @returns {Promise<Blob>}
  */
-export async function generateClabeImage() {
-  const W = 720, H = 480;
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-
-  // Fondo blanco
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, W, H);
-
-  // Header oscuro
-  ctx.fillStyle = '#09090B';
-  ctx.fillRect(0, 0, W, 80);
-
-  // Texto header: marca
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '600 24px Inter, system-ui, -apple-system, Segoe UI, sans-serif';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('Alebrijes Mensualidad', 32, 40);
-
-  // Texto header: subtítulo derecha
-  ctx.font = '500 12px Inter, system-ui, sans-serif';
-  ctx.fillStyle = '#A1A1AA';
-  ctx.textAlign = 'right';
-  ctx.fillText('DATOS PARA TRANSFERENCIA', W - 32, 40);
-  ctx.textAlign = 'left';
-
-  // Filas de información bancaria
-  const rows = [
-    { label: 'Banco',                  value: BANK_INFO.banco,    size: 'normal' },
-    { label: 'Titular',                value: BANK_INFO.titular,   size: 'normal' },
-    { label: 'CLABE Interbancaria',    value: BANK_INFO.clabe,     size: 'large', mono: true },
-    { label: 'Concepto de pago',       value: BANK_INFO.concepto,  size: 'normal' },
-  ];
-
-  const startY = 128;
-  const rowHeight = 76;
-
-  rows.forEach((row, i) => {
-    const y = startY + i * rowHeight;
-
-    // Label
-    ctx.fillStyle = '#71717A';
-    ctx.font = '600 11px Inter, system-ui, sans-serif';
-    ctx.fillText(row.label.toUpperCase(), 32, y);
-
-    // Value
-    ctx.fillStyle = '#09090B';
-    if (row.size === 'large' && row.mono) {
-      ctx.font = '600 28px "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
-    } else {
-      ctx.font = '500 17px Inter, system-ui, sans-serif';
-    }
-    ctx.fillText(row.value, 32, y + 30);
-
-    // Separator
-    ctx.fillStyle = '#F4F4F5';
-    ctx.fillRect(32, y + 60, W - 64, 1);
-  });
-
-  // Footer
-  ctx.fillStyle = '#71717A';
-  ctx.font = '400 11px Inter, system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Una vez realizada tu transferencia, comparte el comprobante por este chat.', W / 2, H - 22);
-  ctx.textAlign = 'left';
-
-  // Convertir a Blob PNG
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error('No se pudo generar la imagen'));
-    }, 'image/png');
-  });
+export function fetchClabeBlob() {
+  if (_clabeBlobPromise) return _clabeBlobPromise;
+  _clabeBlobPromise = fetch(CLABE_IMAGE_URL)
+    .then((r) => {
+      if (!r.ok) throw new Error(`No se pudo cargar ${CLABE_IMAGE_URL} (${r.status})`);
+      return r.blob();
+    });
+  return _clabeBlobPromise;
 }
 
 /**
@@ -311,7 +249,7 @@ export async function generateClabeImage() {
  * @returns {Promise<{ok: true, method: 'clipboard'|'download'}>}
  */
 export async function copyClabeImage() {
-  const blob = await generateClabeImage();
+  const blob = await fetchClabeBlob();
 
   // Intentar copiar al portapapeles
   if (
@@ -340,4 +278,62 @@ export async function copyClabeImage() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   return { ok: true, method: 'download' };
+}
+
+/**
+ * Copia texto + imagen CLABE al portapapeles usando ClipboardItem con
+ * múltiples representaciones. WhatsApp Web/Desktop y otras apps modernas
+ * permiten pegar ambas (texto o imagen según el contexto).
+ *
+ * Si el navegador no soporta múltiples representations, copia primero el
+ * texto y luego intenta copiar la imagen (la segunda puede sobrescribir
+ * según el navegador). Devuelve el método usado.
+ *
+ * @param {string} text  Texto del mensaje de cobro.
+ * @returns {Promise<{ok:true, method:'multi'|'text-only'|'image-download'|'image-only', imageOk:boolean}>}
+ */
+export async function copyMessageAndImage(text) {
+  const blob = await fetchClabeBlob();
+
+  // Camino ideal: ClipboardItem con ambos tipos en un solo write
+  if (
+    typeof ClipboardItem !== 'undefined' &&
+    navigator.clipboard?.write
+  ) {
+    try {
+      const item = new ClipboardItem({
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+        'image/png': blob,
+      });
+      await navigator.clipboard.write([item]);
+      return { ok: true, method: 'multi', imageOk: true };
+    } catch (e) {
+      console.warn('ClipboardItem multi-type falló, intentando sequential', e);
+    }
+  }
+
+  // Fallback A: copiar texto, luego imagen (la imagen puede sobreescribir)
+  let imageOk = false;
+  try {
+    await copyToClipboard(text);
+  } catch (e) { /* sigue */ }
+
+  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      imageOk = true;
+      return { ok: true, method: 'image-only', imageOk: true };
+    } catch (e) { /* sigue al fallback de descarga */ }
+  }
+
+  // Fallback B: descargar imagen para que el usuario la adjunte manualmente
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `datos-pago-${BANK_INFO.banco.toLowerCase()}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return { ok: true, method: 'image-download', imageOk: false };
 }
