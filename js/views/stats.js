@@ -1,12 +1,15 @@
 // js/views/stats.js
-// Vista Estadísticas: filtros por año/mes + KPIs del período
-// + comparación con período anterior + gráficas mejoradas (barras apiladas,
-// línea con área, pastel por categoría).
+// Vista Estadísticas: rediseño editorial con hero stat, bento de KPIs,
+// gráficas con personalidad (anotaciones, banda de promedio, brand color).
 
 import { state, escapeHTML } from '../app.js';
 import { formatMXN, monthName, monthShort } from '../utils/dates.js';
 
 let _filter = null; // { year, month ('all'|1..12) }
+
+const BRAND = '#F26B1F';
+const BRAND_DARK = '#C24D14';
+const INK = '#09090B';
 
 export function renderStats(root) {
   const today = new Date();
@@ -23,118 +26,157 @@ export function renderStats(root) {
 function paint(root) {
   const stats     = computeStats(_filter);
   const prev      = computePrevious(_filter);
-  const bars      = computeBarData(_filter);     // 12 meses: recaudación y pendiente
-  const lines     = computeLineData(_filter);    // 12 meses: % cobrado
+  const bars      = computeBarData(_filter);
+  const lines     = computeLineData(_filter);
   const byCategory = computeByCategory(_filter);
   const donut     = computeCategoryShare(byCategory, stats);
+  const spark     = computeSparkData(_filter);
+
+  const today = new Date();
+  const currentMonthIdx = (_filter.year === today.getFullYear()) ? today.getMonth() : -1;
 
   root.innerHTML = `
     <section class="flex flex-col gap-6">
+      <!-- HEADER -->
       <header class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <p class="section-eyebrow">Período ${escapeHTML(periodLabel(_filter))}</p>
           <h1 class="section-title text-2xl sm:text-3xl mt-1">Estadísticas</h1>
         </div>
-        <button id="reset-filter" type="button" class="btn btn-secondary btn-sm">
-          <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.1a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.277z" clip-rule="evenodd"/></svg>
-          <span>Período actual</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="s-month" class="select w-auto">
+            <option value="all" ${_filter.month === 'all' ? 'selected' : ''}>Todo el año</option>
+            ${[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => `<option value="${m}" ${_filter.month === String(m) ? 'selected' : ''}>${escapeHTML(monthName(m - 1))}</option>`).join('')}
+          </select>
+          <select id="s-year" class="select w-auto">
+            ${availableYears().map((y) => `<option value="${y}" ${_filter.year === y ? 'selected' : ''}>${y}</option>`).join('')}
+          </select>
+          <button id="reset-filter" type="button" class="btn btn-ghost btn-sm" title="Volver al período actual">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.1a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.277z" clip-rule="evenodd"/></svg>
+          </button>
+        </div>
       </header>
 
-      <!-- Filtros -->
-      <div class="card card-pad">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div>
-            <label class="label" for="s-year">Año</label>
-            <select id="s-year" class="select">
-              ${availableYears().map((y) => `<option value="${y}" ${_filter.year === y ? 'selected' : ''}>${y}</option>`).join('')}
-            </select>
+      <!-- HERO STAT: el dato más importante, con sparkline detrás -->
+      <div class="hero-stat">
+        <div class="hero-stat-bg" aria-hidden="true">
+          ${sparklineBackground(spark)}
+        </div>
+        <div class="hero-stat-content">
+          <p class="hero-eyebrow">
+            <span class="status-dot dot-success"></span>
+            Recaudado · ${escapeHTML(periodLabel(_filter))}
+          </p>
+          <p class="hero-number tabular-nums">${formatMXN(stats.recaudado)}</p>
+          <div class="hero-meta">
+            <div class="hero-meta-item">
+              <span class="hero-meta-label">% del esperado</span>
+              <span class="hero-meta-value tabular-nums">${stats.cobradoPct}%</span>
+            </div>
+            <span class="hero-meta-sep"></span>
+            <div class="hero-meta-item">
+              <span class="hero-meta-label">vs ${escapeHTML(periodLabel(prev.filter))}</span>
+              <span class="hero-meta-value tabular-nums ${deltaToneClass(stats.recaudado, prev.recaudado, false)}">${deltaArrowText(stats.recaudado, prev.recaudado, false)}</span>
+            </div>
+            <span class="hero-meta-sep"></span>
+            <div class="hero-meta-item">
+              <span class="hero-meta-label">Pagos cobrados</span>
+              <span class="hero-meta-value tabular-nums">${stats.cobradoPagos} / ${stats.totalPagos}</span>
+            </div>
           </div>
-          <div>
-            <label class="label" for="s-month">Mes</label>
-            <select id="s-month" class="select">
-              <option value="all" ${_filter.month === 'all' ? 'selected' : ''}>Todo el año</option>
-              ${[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => `<option value="${m}" ${_filter.month === String(m) ? 'selected' : ''}>${escapeHTML(monthName(m - 1))}</option>`).join('')}
-            </select>
+          <div class="hero-progress" aria-hidden="true">
+            <div class="hero-progress-bar" style="width: ${Math.min(100, stats.cobradoPct)}%"></div>
           </div>
         </div>
       </div>
 
-      <!-- KPIs del período seleccionado -->
-      <div class="card card-pad">
-        <div class="flex items-center justify-between mb-5">
-          <div>
-            <p class="section-eyebrow">Período seleccionado</p>
-            <h2 class="text-base font-semibold mt-1">${escapeHTML(periodLabel(_filter))}</h2>
+      <!-- BENTO: 3 KPIs secundarios en grid asimétrico -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        ${bentoCard({
+          label: 'Pendiente',
+          value: formatMXN(stats.pendiente),
+          sub: `${stats.pendientePagos} pago${stats.pendientePagos === 1 ? '' : 's'} sin completar`,
+          tone: 'warning',
+          delta: stats.pendiente,
+          prev: prev.pendiente,
+          large: false,
+        })}
+        ${bentoCard({
+          label: '% Cobrado',
+          value: `${stats.cobradoPct}%`,
+          sub: `${stats.cobradoPagos} de ${stats.totalPagos} pago${stats.totalPagos === 1 ? '' : 's'}`,
+          tone: stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger',
+          delta: stats.cobradoPct,
+          prev: prev.cobradoPct,
+          isPercent: true,
+          large: true,
+        })}
+        ${bentoCard({
+          label: 'Jugadores activos',
+          value: stats.jugadoresUnicos,
+          sub: `con al menos un pago`,
+          tone: 'neutral',
+          large: false,
+        })}
+      </div>
+
+      <!-- 2-COLUMN CHARTS: barras + línea lado a lado -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- TENDENCIA MENSUAL -->
+        <div class="chart-card">
+          <div class="chart-card-head">
+            <div>
+              <p class="section-eyebrow">Tendencia mensual</p>
+              <h2 class="chart-card-title">Recaudación por mes</h2>
+            </div>
+            <div class="chart-card-actions">
+              <div class="legend-pill"><span class="legend-swatch" style="background:${BRAND}"></span>Recaudado</div>
+              <div class="legend-pill"><span class="legend-swatch legend-swatch--muted"></span>Pendiente</div>
+            </div>
           </div>
-          <span class="status"><span class="status-dot dot-neutral"></span><span>${stats.totalPagos} pago${stats.totalPagos === 1 ? '' : 's'}</span></span>
+          ${barsChart(bars, currentMonthIdx)}
+          <div class="chart-card-foot">
+            <span>Total anual: <strong class="tabular-nums">${formatMXN(bars.total)}</strong></span>
+            <span>Pico: <strong class="tabular-nums">${escapeHTML(bars.labels[bars.peakIdx])}</strong> · ${formatMXN(bars.peakVal)}</span>
+          </div>
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          ${kpiCard({ label: 'Recaudado', value: formatMXN(stats.recaudado), sub: `${stats.cobradoPct}% del esperado`, progress: { pct: stats.cobradoPct, tone: stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger' }, icon: 'cash' })}
-          ${kpiCard({ label: 'Pendiente', value: formatMXN(stats.pendiente), sub: `${stats.pendientePagos} pago${stats.pendientePagos === 1 ? '' : 's'} sin completar`, progress: { pct: 100 - stats.cobradoPct, tone: 'warning' }, icon: 'clock' })}
-          ${kpiCard({ label: '% Cobrado', value: `${stats.cobradoPct}%`, sub: `${stats.cobradoPagos} de ${stats.totalPagos}`, progress: { pct: stats.cobradoPct, tone: stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger' }, icon: 'check' })}
-          ${kpiCard({ label: 'Jugadores', value: stats.jugadoresUnicos, sub: `con al menos un pago`, icon: 'users' })}
+
+        <!-- EVOLUCIÓN -->
+        <div class="chart-card">
+          <div class="chart-card-head">
+            <div>
+              <p class="section-eyebrow">Evolución</p>
+              <h2 class="chart-card-title">% Cobrado por mes</h2>
+            </div>
+            <div class="chart-card-actions">
+              <div class="legend-pill"><span class="legend-dot dot-warning"></span>Promedio ${lines.avg}%</div>
+            </div>
+          </div>
+          ${linesChart(lines, currentMonthIdx)}
+          <div class="chart-card-foot">
+            <span>Mínimo: <strong class="tabular-nums">${lines.min}%</strong></span>
+            <span>Máximo: <strong class="tabular-nums">${lines.max}%</strong></span>
+            <span>Actual: <strong class="tabular-nums">${currentMonthIdx >= 0 && lines.values[currentMonthIdx] ? lines.values[currentMonthIdx] + '%' : '—'}</strong></span>
+          </div>
         </div>
       </div>
 
-      <!-- Comparación con período anterior -->
-      <div class="card card-pad">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <p class="section-eyebrow">Comparación</p>
-            <h2 class="text-base font-semibold mt-1">vs ${escapeHTML(periodLabel(prev.filter))}</h2>
-          </div>
-          <span class="text-xs text-zinc-500">${prevStatsLabel(prev, stats)}</span>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          ${compareBlock('Recaudado', formatMXN(stats.recaudado), formatMXN(prev.recaudado), deltaPct(stats.recaudado, prev.recaudado))}
-          ${compareBlock('Pendiente', formatMXN(stats.pendiente), formatMXN(prev.pendiente), deltaPct(stats.pendiente, prev.pendiente))}
-          ${compareBlock('% Cobrado', `${stats.cobradoPct}%`,     `${prev.cobradoPct}%`,     stats.cobradoPct - prev.cobradoPct, true)}
-        </div>
-      </div>
-
-      <!-- GRÁFICA DE BARRAS APILADAS: Recaudación vs pendiente -->
-      <div class="card card-pad">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
-          <div>
-            <p class="section-eyebrow">Tendencia mensual</p>
-            <h2 class="text-base font-semibold mt-1">Recaudación vs Pendiente · ${_filter.year}</h2>
-          </div>
-          <div class="flex items-center gap-3 text-xs">
-            <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#09090B"></span>Recaudado</span>
-            <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#E4E4E7"></span>Pendiente</span>
-          </div>
-        </div>
-        ${barsChart(bars)}
-        <p class="text-[11px] text-zinc-500 mt-3">Pasa el cursor sobre una barra para ver el detalle del mes.</p>
-      </div>
-
-      <!-- GRÁFICA DE LÍNEAS CON ÁREA: % cobrado por mes -->
-      <div class="card card-pad">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
-          <div>
-            <p class="section-eyebrow">Evolución</p>
-            <h2 class="text-base font-semibold mt-1">% Cobrado por mes · ${_filter.year}</h2>
-          </div>
-          <span class="text-xs text-zinc-500 tabular-nums">Promedio: ${lines.avg}%</span>
-        </div>
-        ${linesChart(lines)}
-        <p class="text-[11px] text-zinc-500 mt-3">Pasa el cursor sobre un punto para ver el detalle del mes.</p>
-      </div>
-
-      <!-- DISTRIBUCIÓN POR CATEGORÍA: tabla + pastel -->
-      <div class="card card-pad">
-        <div class="flex items-center justify-between mb-4">
+      <!-- COBRANZA POR CATEGORÍA: donut + tabla -->
+      <div class="chart-card">
+        <div class="chart-card-head">
           <div>
             <p class="section-eyebrow">Por categoría</p>
-            <h2 class="text-base font-semibold mt-1">Cobranza del período</h2>
+            <h2 class="chart-card-title">Cobranza del período</h2>
           </div>
-          <span class="text-xs text-zinc-500 tabular-nums">${byCategory.length} categorías</span>
+          <span class="text-xs text-zinc-500 tabular-nums">${byCategory.length} categorías · ${formatMXN(donut.recaudado)} recaudado</span>
         </div>
         ${byCategory.length === 0
-          ? `<p class="text-sm text-zinc-500 py-6 text-center">Sin categorías con pagos en este período.</p>`
-          : `<div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
-              <div class="lg:col-span-3">
+          ? `<p class="text-sm text-zinc-500 py-8 text-center">Sin categorías con pagos en este período.</p>`
+          : `<div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-center">
+              <div class="lg:col-span-2 order-2 lg:order-1">
+                ${donutChart(donut)}
+              </div>
+              <div class="lg:col-span-3 order-1 lg:order-2">
                 <div class="table-wrap overflow-x-auto">
                   <table class="table">
                     <thead>
@@ -142,18 +184,15 @@ function paint(root) {
                         <th>Categoría</th>
                         <th class="text-right">Recaudado</th>
                         <th class="text-right">Pendiente</th>
-                        <th class="text-right hidden sm:table-cell">Total esperado</th>
-                        <th class="text-right">% Cobrado</th>
+                        <th class="text-right hidden sm:table-cell">Total</th>
+                        <th class="text-right">%</th>
                       </tr>
                     </thead>
                     <tbody>
-                      ${byCategory.map(catRow).join('')}
+                      ${byCategory.map((c, i) => catRow(c, i, donut.segments[0]?.name)).join('')}
                     </tbody>
                   </table>
                 </div>
-              </div>
-              <div class="lg:col-span-2">
-                ${donutChart(donut)}
               </div>
             </div>`
         }
@@ -176,72 +215,68 @@ function paint(root) {
     paint(root);
   });
 
-  // Wire chart hover tooltips
   wireStatsTooltip(root);
+}
+
+// ============ HELPERS DE FORMATO ============ //
+
+function deltaArrowText(current, previous, isPercent = false) {
+  if (!previous && current === 0) return '—';
+  const delta = current - previous;
+  if (delta === 0) return 'sin cambios';
+  const arrow = delta > 0 ? '↑' : '↓';
+  const abs = Math.abs(delta).toFixed(1);
+  return `${arrow} ${abs}${isPercent ? ' pts' : '%'}`;
+}
+
+function deltaToneClass(current, previous, isPercent = false) {
+  if (!previous && current === 0) return 'text-zinc-500';
+  const delta = current - previous;
+  if (delta === 0) return 'text-zinc-500';
+  // Para métricas donde "más es mejor" (recaudado, cobrado)
+  const positive = delta > 0;
+  if (isPercent) {
+    return positive ? 'text-success' : 'text-danger';
+  }
+  return positive ? 'text-success' : 'text-danger';
 }
 
 // ============ COMPONENTES UI ============ //
 
-const KPI_SVG = {
-  cash:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
-  clock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
-  check:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>',
-  users:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
-};
+function bentoCard({ label, value, sub, tone, delta, prev, isPercent, large }) {
+  const toneColor = tone === 'success' ? '#047857' : tone === 'warning' ? '#B45309' : tone === 'danger' ? '#B91C1C' : '#27272A';
+  const bgColor   = tone === 'success' ? '#ECFDF5' : tone === 'warning' ? '#FFFBEB' : tone === 'danger' ? '#FEF2F2' : '#F4F4F5';
+  const dotClass  = tone === 'success' ? 'dot-success' : tone === 'warning' ? 'dot-warning' : tone === 'danger' ? 'dot-danger' : 'dot-neutral';
 
-function kpiCard({ label, value, sub, progress, icon }) {
-  const tone = progress?.tone || 'neutral';
-  const toneColor = tone === 'success' ? '#10B981' : tone === 'warning' ? '#F59E0B' : tone === 'danger' ? '#EF4444' : '#52525B';
-  const progressHTML = progress ? `
-    <div class="kpi-progress" aria-hidden="true">
-      <div class="kpi-progress-bar" style="width: ${Math.min(100, progress.pct)}%; background: ${toneColor};"></div>
-    </div>
-  ` : '';
+  const deltaHTML = (delta !== undefined && prev !== undefined)
+    ? `<span class="bento-delta tabular-nums ${deltaToneClass(delta, prev, isPercent)}">${deltaArrowText(delta, prev, isPercent)}</span>`
+    : '';
+
   return `
-    <div class="kpi-card kpi-card--${tone}">
-      <div class="kpi-head">
-        <span class="kpi-icon" style="color: ${toneColor};">${KPI_SVG[icon] || ''}</span>
-        <p class="kpi-label">${escapeHTML(label)}</p>
+    <div class="bento-card ${large ? 'bento-card--large' : ''}" style="--bento-accent:${toneColor}; --bento-bg:${bgColor};">
+      <div class="bento-card-head">
+        <span class="status-dot ${dotClass}"></span>
+        <p class="bento-label">${escapeHTML(label)}</p>
       </div>
-      <p class="kpi-value tabular-nums">${value}</p>
-      <p class="kpi-sub">${escapeHTML(sub)}</p>
-      ${progressHTML}
-    </div>
-  `;
-}
-
-function prevStatsLabel(prev, stats) {
-  if (stats.recaudado === 0 && prev.recaudado === 0) return 'Sin datos';
-  return 'Comparado con el período anterior';
-}
-
-function compareBlock(label, current, previous, delta, isPercent = false) {
-  const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-  const positive = delta > 0;
-  const neutral  = delta === 0;
-  const dotClass = neutral ? 'dot-neutral' : (isPercent ? (positive ? 'dot-success' : 'dot-danger') : 'dot-neutral');
-  const deltaText = neutral ? 'sin cambios' : `${arrow} ${Math.abs(delta).toFixed(1)}${isPercent ? ' pts' : '%'}`;
-  const deltaTone = neutral ? 'text-zinc-500' : positive ? 'text-success' : 'text-danger';
-  return `
-    <div class="border border-zinc-200 rounded-lg p-3.5">
-      <p class="stat-label">${escapeHTML(label)}</p>
-      <p class="stat-value text-xl mt-1">${current}</p>
-      <div class="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100">
-        <span class="text-xs text-zinc-500">Anterior: <span class="tabular-nums font-medium text-zinc-700">${previous}</span></span>
-        <span class="status">
-          <span class="status-dot ${dotClass}"></span>
-          <span class="text-xs font-medium ${deltaTone}">${escapeHTML(deltaText)}</span>
-        </span>
+      <p class="bento-value tabular-nums">${value}</p>
+      <div class="bento-card-foot">
+        <p class="bento-sub">${escapeHTML(sub)}</p>
+        ${deltaHTML}
       </div>
     </div>
   `;
 }
 
-function catRow(c) {
+function catRow(c, idx, topName) {
+  const rank = idx + 1;
+  const isTop = c.name === topName && idx === 0;
   const swatch = `<span class="inline-block w-2.5 h-2.5 rounded-sm mr-2 align-middle" style="background:${escapeHTML(c.color)}"></span>`;
   return `
-    <tr>
-      <td class="font-medium">${swatch}${escapeHTML(c.name)}</td>
+    <tr class="${isTop ? 'cat-row--top' : ''}">
+      <td class="font-medium">
+        <span class="cat-rank">${rank}</span>
+        ${swatch}${escapeHTML(c.name)}
+      </td>
       <td class="text-right tabular-nums font-semibold">${formatMXN(c.paid)}</td>
       <td class="text-right tabular-nums text-zinc-600">${formatMXN(c.pending)}</td>
       <td class="text-right tabular-nums text-zinc-500 hidden sm:table-cell">${formatMXN(c.total)}</td>
@@ -255,36 +290,68 @@ function catRow(c) {
   `;
 }
 
-// ============ GRÁFICAS SVG ============ //
+// ============ SPARKLINE (background del hero) ============ //
 
-function barsChart(data) {
-  // data: { labels: ['Ene',...], paid:[..], pending:[..], total, max }
-  const W = 600, H = 320;
-  const padL = 60, padR = 24, padT = 36, padB = 44;
+function sparklineBackground(data) {
+  if (!data || data.values.length === 0 || data.max === 0) return '';
+  const W = 600, H = 200;
+  const pad = 8;
+  const plotW = W - pad * 2;
+  const plotH = H - pad * 2;
+  const n = data.values.length;
+  const stepX = plotW / Math.max(1, n - 1);
+  const maxV = Math.max(1, data.max);
+  const points = data.values.map((v, i) => ({
+    x: pad + stepX * i,
+    y: pad + plotH - (v / maxV) * plotH,
+  }));
+  const smooth = smoothPath(points);
+  const baselineY = pad + plotH;
+  const areaPath = `M ${points[0].x},${baselineY} L ${points[0].x},${points[0].y} ${smooth.replace(/^M [^ ]+ /, '')} L ${points[n - 1].x},${baselineY} Z`;
+  return `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="hero-spark-svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="heroSparkFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${BRAND}" stop-opacity="0.32"/>
+          <stop offset="100%" stop-color="${BRAND}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#heroSparkFill)" />
+      <path d="${smooth}" fill="none" stroke="${BRAND}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+  `;
+}
+
+// ============ BARS CHART (Tendencia Mensual) ============ //
+
+function barsChart(data, currentMonthIdx) {
+  // data: { labels, paid, pending, total, max, peakIdx, peakVal }
+  const W = 640, H = 360;
+  const padL = 52, padR = 20, padT = 56, padB = 44;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const n = data.labels.length;
-  const gapRatio = 0.42;
+  const gapRatio = 0.36;
   const barW = (plotW / n) * (1 - gapRatio);
   const stepX = plotW / n;
   const maxV = Math.max(1, data.max);
   const niceMax = niceCeil(maxV);
-  const gridSteps = 4;
   const baselineY = padT + plotH;
-  const cornerR = Math.min(4, Math.max(2, barW / 4));
-
-  const today = new Date();
-  const currentMonthIdx = (_filter.year === today.getFullYear()) ? today.getMonth() : -1;
 
   const gridLines = [];
   const yLabels = [];
-  for (let i = 0; i <= gridSteps; i++) {
-    const v = (niceMax / gridSteps) * i;
+  for (let i = 0; i <= 4; i++) {
+    const v = (niceMax / 4) * i;
     const y = baselineY - (v / niceMax) * plotH;
     const isZero = i === 0;
-    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${isZero ? '#D4D4D8' : '#F4F4F5'}" stroke-width="1" ${isZero ? '' : 'stroke-dasharray="2 4"'} />`);
-    yLabels.push(`<text x="${padL - 10}" y="${y + 3.5}" text-anchor="end" font-size="10" fill="#A1A1AA" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(compactMoney(v))}</text>`);
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${isZero ? '#E4E4E7' : '#F4F4F5'}" stroke-width="1" ${isZero ? '' : 'stroke-dasharray="2 4"'} />`);
+    yLabels.push(`<text x="${padL - 10}" y="${y + 3.5}" text-anchor="end" font-size="10.5" fill="#A1A1AA" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(compactMoney(v))}</text>`);
   }
+
+  // Watermark: año como fondo sutil
+  const watermark = `
+    <text x="${W - padR}" y="${padT - 18}" text-anchor="end" font-size="42" font-weight="700" fill="#F4F4F5" font-family="Inter, sans-serif" letter-spacing="-2" aria-hidden="true">${escapeHTML(String(data.year || ''))}</text>
+  `;
 
   const bars = data.labels.map((lab, i) => {
     const paid = data.paid[i];
@@ -295,76 +362,94 @@ function barsChart(data) {
     const pendingH = total > 0 ? (pending / niceMax) * plotH : 0;
     const yPaidTop = baselineY - paidH;
     const yPendingTop = yPaidTop - pendingH;
-    const hasData = total > 0;
     const isCurrent = i === currentMonthIdx;
+    const isPeak = i === data.peakIdx && paid > 0;
 
-    // Path: esquinas SUPERIORES redondeadas, base plana. Es la forma del
-    // segmento TOP de la pila (el más alto visible).
-    const topRect = (x0, y0, w, h, radius) => {
+    const r = Math.min(3, Math.max(2, barW / 5));
+    const topPath = (x0, y0, h) => {
       if (h <= 0) return '';
-      const rr = Math.min(radius, h / 2);
-      return `M ${x0},${y0 + h} L ${x0},${y0 + rr} Q ${x0},${y0} ${x0 + rr},${y0} L ${x0 + w - rr},${y0} Q ${x0 + w},${y0} ${x0 + w},${y0 + rr} L ${x0 + w},${y0 + h} Z`;
+      const rr = Math.min(r, h / 2);
+      return `M ${x0},${y0 + h} L ${x0},${y0 + rr} Q ${x0},${y0} ${x0 + rr},${y0} L ${x0 + barW - rr},${y0} Q ${x0 + barW},${y0} ${x0 + barW},${y0 + rr} L ${x0 + barW},${y0 + h} Z`;
     };
 
     const currentBg = isCurrent
-      ? `<rect x="${padL + stepX * i + 2}" y="${padT - 14}" width="${stepX - 4}" height="${plotH + 16}" rx="6" fill="#FAFAFA" />`
+      ? `<rect x="${padL + stepX * i + 1}" y="${padT - 8}" width="${stepX - 2}" height="${plotH + 12}" rx="4" fill="#FAFAFA" />`
       : '';
 
-    // Reglas de dibujo para evitar solapamientos / gaps en las esquinas:
-    // - Si SOLO hay paid  → paid es el top visible → esquinas SUP redondeadas
-    // - Si SOLO hay pending → pending es el top visible → esquinas SUP redondeadas
-    // - Si hay ambos      → paid es segmento inferior (esquinas planas)
-    //                        pending es el top visible (esquinas SUP redondeadas)
     let paidEl = '';
     let pendingEl = '';
     if (paid > 0) {
       if (pending > 0) {
-        // Paid queda debajo, sin redondeo (su top se pega al flat-bottom de pending)
-        paidEl = `<rect x="${x}" y="${yPaidTop}" width="${barW}" height="${Math.max(paidH, 0.5)}" fill="#09090B" />`;
+        paidEl = `<rect x="${x}" y="${yPaidTop}" width="${barW}" height="${Math.max(paidH, 1)}" fill="url(#barPaidFill)" />`;
       } else {
-        // Paid es el único segmento y el visual top
-        paidEl = `<path d="${topRect(x, yPaidTop, barW, paidH, cornerR)}" fill="#09090B" />`;
+        paidEl = `<path d="${topPath(x, yPaidTop, paidH)}" fill="url(#barPaidFill)" />`;
       }
     }
     if (pending > 0) {
-      pendingEl = `<path d="${topRect(x, yPendingTop, barW, pendingH, cornerR)}" fill="#E4E4E7" />`;
+      pendingEl = `<path d="${topPath(x, yPendingTop, pendingH)}" fill="#E4E4E7" />`;
     }
 
-    const valueLabel = paid > 0
-      ? `<text x="${x + barW / 2}" y="${yPaidTop - 8}" text-anchor="middle" font-size="10" font-weight="600" fill="#09090B" font-family="Inter, sans-serif" class="tabular-nums chart-value-label">${escapeHTML(compactMoney(paid))}</text>`
-      : '';
+    const valueLabelY = yPaidTop - 10;
+    const showValue = paid > 0 && valueLabelY > padT - 18;
 
     return `
       ${currentBg}
       <g class="stat-bar" data-label="${escapeHTML(lab)}" data-paid="${paid}" data-pending="${pending}" data-total="${total}" style="cursor:pointer;">
-        ${hasData ? `
-          ${paidEl}
+        ${hasData(total) ? `
           ${pendingEl}
-          ${valueLabel}
+          ${paidEl}
+          ${showValue ? `<text x="${x + barW / 2}" y="${valueLabelY}" text-anchor="middle" font-size="11" font-weight="600" fill="${INK}" font-family="Inter, sans-serif" class="tabular-nums chart-value-label">${escapeHTML(compactMoney(paid))}</text>` : ''}
+          ${isCurrent && paid > 0 ? `<circle cx="${x + barW / 2}" cy="${yPaidTop - 4}" r="3" fill="${BRAND}" stroke="#FFFFFF" stroke-width="1.5" />` : ''}
         ` : `
           <rect x="${x}" y="${baselineY - 2}" width="${barW}" height="2" fill="#E4E4E7" rx="1" />
         `}
-        <rect class="stat-bar-hit" x="${padL + stepX * i}" y="${padT - 16}" width="${stepX}" height="${plotH + 18}" fill="transparent" />
+        <rect class="stat-bar-hit" x="${padL + stepX * i}" y="${padT - 20}" width="${stepX}" height="${plotH + 24}" fill="transparent" />
       </g>
     `;
   }).join('');
 
+  // X-axis labels
   const xLabels = data.labels.map((lab, i) => {
     const x = padL + stepX * i + stepX / 2;
     const isCurrent = i === currentMonthIdx;
-    const fill = isCurrent ? '#09090B' : '#71717A';
-    const weight = isCurrent ? '600' : '400';
-    return `<text x="${x}" y="${H - padB + 22}" text-anchor="middle" font-size="10" fill="${fill}" font-weight="${weight}" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
+    const fill = isCurrent ? INK : '#71717A';
+    const weight = isCurrent ? '700' : '500';
+    return `<text x="${x}" y="${H - padB + 22}" text-anchor="middle" font-size="11" fill="${fill}" font-weight="${weight}" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
   }).join('');
+
+  // Peak annotation
+  let peakAnn = '';
+  if (data.peakIdx >= 0 && data.peakVal > 0) {
+    const px = padL + stepX * data.peakIdx + stepX / 2;
+    const py = baselineY - (data.paid[data.peakIdx] / niceMax) * plotH;
+    const annY = Math.max(padT + 16, py - 36);
+    peakAnn = `
+      <g class="peak-annotation">
+        <line x1="${px}" y1="${py - 12}" x2="${px}" y2="${annY + 12}" stroke="${BRAND}" stroke-width="1" stroke-dasharray="2 2" />
+        <g transform="translate(${px}, ${annY})">
+          <rect x="-40" y="-16" width="80" height="24" rx="12" fill="${BRAND}" />
+          <text x="0" y="2" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif" class="tabular-nums">PICO ${escapeHTML(data.labels[data.peakIdx])}</text>
+        </g>
+      </g>
+    `;
+  }
 
   return `
     <div class="chart-wrap" data-chart="stats-bars">
       <div class="w-full overflow-x-auto">
-        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras apiladas: recaudación vs pendiente por mes" class="w-full h-auto chart-svg" style="min-width: 480px;">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras: recaudación vs pendiente por mes" class="w-full h-auto chart-svg" preserveAspectRatio="xMidYMid meet" style="min-width: 520px;">
+          <defs>
+            <linearGradient id="barPaidFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${BRAND}" stop-opacity="1"/>
+              <stop offset="100%" stop-color="${BRAND_DARK}" stop-opacity="1"/>
+            </linearGradient>
+          </defs>
           ${gridLines.join('')}
           ${yLabels.join('')}
+          ${watermark}
           ${bars}
           ${xLabels}
+          ${peakAnn}
         </svg>
       </div>
       <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
@@ -372,30 +457,20 @@ function barsChart(data) {
   `;
 }
 
-function linesChart(data) {
-  const W = 600, H = 320;
-  const padL = 52, padR = 24, padT = 28, padB = 44;
+function hasData(total) { return total > 0; }
+
+// ============ LINES CHART (Evolución) ============ //
+
+function linesChart(data, currentMonthIdx) {
+  // data: { labels, values, totals, avg, min, max, minIdx, maxIdx }
+  const W = 640, H = 360;
+  const padL = 48, padR = 20, padT = 48, padB = 44;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const n = data.values.length;
-  const stepX = plotW / (n - 1 || 1);
-  const minV = 0, maxV = 100;
+  const stepX = plotW / Math.max(1, n - 1);
+  const maxV = 100;
   const baselineY = padT + plotH;
-
-  const today = new Date();
-  const currentMonthIdx = (_filter.year === today.getFullYear()) ? today.getMonth() : -1;
-
-  // Grid dashed + baseline sólido
-  const gridSteps = 4;
-  const gridLines = [];
-  const yLabels = [];
-  for (let i = 0; i <= gridSteps; i++) {
-    const v = (maxV / gridSteps) * i;
-    const y = baselineY - (v / maxV) * plotH;
-    const isZero = i === 0;
-    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${isZero ? '#D4D4D8' : '#F4F4F5'}" stroke-width="1" ${isZero ? '' : 'stroke-dasharray="2 4"'} />`);
-    yLabels.push(`<text x="${padL - 10}" y="${y + 3.5}" text-anchor="end" font-size="10" fill="#A1A1AA" font-family="Inter, sans-serif">${v}%</text>`);
-  }
 
   const points = data.values.map((v, i) => {
     const x = padL + stepX * i;
@@ -403,90 +478,113 @@ function linesChart(data) {
     return { x, y, v, lab: data.labels[i], total: data.totals[i] };
   });
 
-  const avg = data.avg;
-  const avgY = baselineY - (avg / maxV) * plotH;
-  const avgLabelX = padL + 6;
-  const avgLabelY = Math.max(16, Math.min(avgY, baselineY - 10));
-  const avgLine = `
-    <line x1="${padL}" y1="${avgY}" x2="${W - padR}" y2="${avgY}"
-          stroke="#A1A1AA" stroke-width="1" stroke-dasharray="3 4" opacity="0.7" />
-    <rect x="${avgLabelX}" y="${avgLabelY - 16}" width="100" height="14" rx="7" fill="#FFFFFF" />
-    <text x="${avgLabelX + 8}" y="${avgLabelY - 6}" font-size="10" font-weight="500" fill="#52525B" font-family="Inter, sans-serif">Promedio ${avg}%</text>
+  // Gridlines horizontales (0, 25, 50, 75, 100)
+  const gridLines = [];
+  const yLabels = [];
+  for (let i = 0; i <= 4; i++) {
+    const v = (maxV / 4) * i;
+    const y = baselineY - (v / maxV) * plotH;
+    const isZero = i === 0;
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${isZero ? '#E4E4E7' : '#F4F4F5'}" stroke-width="1" ${isZero ? '' : 'stroke-dasharray="2 4"'} />`);
+    yLabels.push(`<text x="${padL - 10}" y="${y + 3.5}" text-anchor="end" font-size="10.5" fill="#A1A1AA" font-family="Inter, sans-serif">${v}%</text>`);
+  }
+
+  // Banda del promedio (zona de sombra entre 40% y 100% como rango sano)
+  const healthyTop = baselineY - (100 / maxV) * plotH;
+  const healthyBot = baselineY - (40 / maxV) * plotH;
+  const healthyBand = `
+    <rect x="${padL}" y="${healthyTop}" width="${plotW}" height="${healthyBot - healthyTop}" fill="#F4F4F5" opacity="0.4" />
   `;
 
-  // Path suavizado (Catmull-Rom uniforme)
+  // Línea de promedio
+  const avg = data.avg;
+  const avgY = baselineY - (avg / maxV) * plotH;
+  const avgClampedY = Math.max(padT + 14, Math.min(avgY, baselineY - 10));
+  const avgLine = `
+    <line x1="${padL}" y1="${avgY}" x2="${W - padR}" y2="${avgY}" stroke="${BRAND}" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.7" />
+    <g transform="translate(${padL + 8}, ${avgClampedY - 18})">
+      <rect x="0" y="0" width="84" height="18" rx="9" fill="#FFFFFF" stroke="${BRAND}" stroke-width="1" />
+      <text x="42" y="13" text-anchor="middle" font-size="10.5" font-weight="600" fill="${BRAND}" font-family="Inter, sans-serif" class="tabular-nums">Promedio ${avg}%</text>
+    </g>
+  `;
+
+  // Smooth path + area
   const smooth = smoothPath(points);
-  // Área: bajar a baseline desde el primer punto, recorrer la curva,
-  // cerrar volviendo a baseline al final.
-  const curveTail = smooth.replace(/^M [^ ]+ /, ''); // quita "M x0,y0 "
+  const curveTail = smooth.replace(/^M [^ ]+ /, '');
   const areaPath = `M ${points[0].x},${baselineY} L ${points[0].x},${points[0].y} ${curveTail} L ${points[n - 1].x},${baselineY} Z`;
 
-  // Dots con halo + etiqueta destacada en peak/trough/current
-  const sortedVals = points.map((p) => p.v);
-  const maxIdx = sortedVals.length > 0 ? sortedVals.indexOf(Math.max(...sortedVals)) : -1;
-  const minIdx = sortedVals.length > 0 ? sortedVals.indexOf(Math.min(...sortedVals)) : -1;
-  const highlightIdxs = new Set([maxIdx, minIdx, currentMonthIdx].filter((i) => i >= 0));
-  const BADGE_HALF_H = 9; // la mitad aprox. del badge (rect y=-12 height=18)
-  const BADGE_HALF_W = 19; // ancho aprox. del badge (rect x=-18 width=36) + margen
+  const allZero = data.values.every((v) => v === 0);
+  const emptyMsg = allZero
+    ? `<text x="${W / 2}" y="${padT + plotH / 2 + 4}" text-anchor="middle" font-size="11" fill="#A1A1AA" font-family="Inter, sans-serif">Sin pagos en este año</text>`
+    : '';
 
-  const dots = points.map((p, i) => {
-    const isHighlight = highlightIdxs.has(i);
+  // X-axis labels
+  const xLabels = data.labels.map((lab, i) => {
+    const x = padL + stepX * i;
     const isCurrent = i === currentMonthIdx;
-    const dotR = isCurrent ? 5 : isHighlight ? 4.5 : 3.5;
-    const haloR = isCurrent ? 9 : isHighlight ? 8 : 6;
-    const labelText = isHighlight || isCurrent ? `${p.v}%` : '';
+    const fill = isCurrent ? INK : '#71717A';
+    const weight = isCurrent ? '700' : '500';
+    return `<text x="${x}" y="${H - padB + 22}" text-anchor="middle" font-size="11" fill="${fill}" font-weight="${weight}" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
+  }).join('');
 
-    // Posición del badge clampeada al área visible
-    let labelY = p.y - haloR - 8;
-    labelY = Math.max(labelY, BADGE_HALF_H);          // no salir por arriba
-    labelY = Math.min(labelY, baselineY - BADGE_HALF_H); // no salir por abajo
-    const labelX = Math.max(BADGE_HALF_W, Math.min(p.x, W - BADGE_HALF_W));
-
+  // Dots
+  const dots = points.map((p, i) => {
+    const isCurrent = i === currentMonthIdx;
+    const isMax = i === data.maxIdx;
+    const isMin = i === data.minIdx;
+    const dotR = isCurrent ? 6 : (isMax || isMin) ? 5 : 3.5;
+    const strokeW = isCurrent ? 3 : (isMax || isMin) ? 2.25 : 1.75;
+    const stroke = isCurrent ? BRAND : INK;
     return `
       <g class="stat-dot" data-label="${escapeHTML(p.lab)}" data-value="${p.v}" data-total="${p.total}" style="cursor:pointer;">
-        ${labelText ? `
-          <g transform="translate(${labelX}, ${labelY})">
-            <rect x="-18" y="-12" width="36" height="18" rx="9" fill="#09090B" />
-            <text x="0" y="1" text-anchor="middle" font-size="10.5" font-weight="600" fill="#FFFFFF" font-family="Inter, sans-serif" class="tabular-nums">${labelText}</text>
-          </g>
-        ` : ''}
-        <circle cx="${p.x}" cy="${p.y}" r="${haloR + 4}" fill="transparent" />
-        <circle cx="${p.x}" cy="${p.y}" r="${haloR}" fill="#09090B" opacity="0.08" />
-        <circle cx="${p.x}" cy="${p.y}" r="${dotR}" fill="#FFFFFF" stroke="#09090B" stroke-width="${isCurrent ? 2.25 : 1.75}" />
+        ${isCurrent ? `<circle cx="${p.x}" cy="${p.y}" r="11" fill="${BRAND}" opacity="0.15" />` : ''}
+        <circle cx="${p.x}" cy="${p.y}" r="${dotR + 6}" fill="transparent" />
+        <circle cx="${p.x}" cy="${p.y}" r="${dotR}" fill="#FFFFFF" stroke="${stroke}" stroke-width="${strokeW}" />
       </g>
     `;
   }).join('');
 
-  const allZero = data.values.every((v) => v === 0);
-  const emptyMsg = allZero
-    ? `<text x="${W / 2}" y="${padT + plotH / 2 + 4}" text-anchor="middle" font-size="11" fill="#A1A1AA" font-family="Inter, sans-serif">Sin pagos en ${_filter.year}</text>`
-    : '';
-
-  const xLabels = data.labels.map((lab, i) => {
-    const x = padL + stepX * i;
-    const isCurrent = i === currentMonthIdx;
-    const fill = isCurrent ? '#09090B' : '#71717A';
-    const weight = isCurrent ? '600' : '400';
-    return `<text x="${x}" y="${H - padB + 22}" text-anchor="middle" font-size="10" fill="${fill}" font-weight="${weight}" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
-  }).join('');
+  // Max/Min annotations
+  const BADGE_H = 9;
+  const BADGE_W = 19;
+  function ann(value, idx, label, type) {
+    if (idx < 0 || value === undefined) return '';
+    const p = points[idx];
+    if (!p) return '';
+    const labelY = type === 'max'
+      ? Math.max(p.y - BADGE_H - 22, padT + 12)
+      : Math.min(p.y + BADGE_H + 16, baselineY - 12);
+    const labelX = Math.max(BADGE_W, Math.min(p.x, W - BADGE_W));
+    const bg = type === 'max' ? '#047857' : '#B91C1C';
+    return `
+      <g transform="translate(${labelX}, ${labelY})">
+        <rect x="-22" y="-12" width="44" height="22" rx="11" fill="${bg}" />
+        <text x="0" y="3" text-anchor="middle" font-size="10.5" font-weight="700" fill="#FFFFFF" font-family="Inter, sans-serif" class="tabular-nums">${value}%</text>
+      </g>
+    `;
+  }
+  const maxAnn = data.maxIdx !== currentMonthIdx ? ann(data.max, data.maxIdx, data.labels[data.maxIdx], 'max') : '';
+  const minAnn = data.minIdx !== currentMonthIdx ? ann(data.min, data.minIdx, data.labels[data.minIdx], 'min') : '';
 
   return `
     <div class="chart-wrap" data-chart="stats-lines">
       <div class="w-full overflow-x-auto">
-        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto chart-svg" style="min-width: 480px;">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto chart-svg" preserveAspectRatio="xMidYMid meet" style="min-width: 520px;">
           <defs>
             <linearGradient id="lineAreaFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#09090B" stop-opacity="0.22"/>
-              <stop offset="60%" stop-color="#09090B" stop-opacity="0.08"/>
-              <stop offset="100%" stop-color="#09090B" stop-opacity="0"/>
+              <stop offset="0%" stop-color="${BRAND}" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="${BRAND}" stop-opacity="0"/>
             </linearGradient>
           </defs>
           ${gridLines.join('')}
           ${yLabels.join('')}
+          ${healthyBand}
           <path d="${areaPath}" fill="url(#lineAreaFill)" />
-          <path d="${smooth}" fill="none" stroke="#09090B" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" />
+          <path d="${smooth}" fill="none" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
           ${avgLine}
           ${dots}
+          ${maxAnn}
+          ${minAnn}
           ${emptyMsg}
           ${xLabels}
         </svg>
@@ -496,10 +594,65 @@ function linesChart(data) {
   `;
 }
 
-/** Curva suavizada uniforme (Catmull-Rom → Bezier cúbica). */
+// ============ DONUT CHART (Pastel por categoría) ============ //
+
+function donutChart(donut) {
+  const size = 260;
+  const cx = size / 2, cy = size / 2;
+  const r = 100;
+  const stroke = 28;
+  const C = 2 * Math.PI * r;
+
+  if (donut.total === 0) {
+    return `<p class="text-sm text-zinc-500 py-6 text-center">Sin datos para graficar.</p>`;
+  }
+
+  let offset = 0;
+  const segments = donut.segments.map((s, i) => {
+    const frac = s.paid / donut.total;
+    const dash = frac * C;
+    const gap = C - dash;
+    const isFirst = i === 0;
+    const path = `
+      <circle class="donut-seg" cx="${cx}" cy="${cy}" r="${r}"
+              fill="none" stroke="${escapeHTML(s.color)}" stroke-width="${stroke}"
+              stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-offset}"
+              transform="rotate(-90 ${cx} ${cy})"
+              data-name="${escapeHTML(s.name)}" data-paid="${s.paid}" data-pending="${s.pending}" data-total="${s.total}" data-pct="${s.pct}"
+              style="cursor:pointer; transition: opacity 120ms; ${isFirst ? 'filter: drop-shadow(0 2px 6px rgba(242,107,31,0.25));' : ''}" />
+    `;
+    offset += dash;
+    return path;
+  }).join('');
+
+  // Etiqueta principal: el segmento top con su nombre y monto
+  const top = donut.segments[0];
+  const topName = top.name.length > 14 ? top.name.slice(0, 13) + '…' : top.name;
+
+  const centerHTML = `
+    <text x="${cx}" y="${cy - 28}" text-anchor="middle" font-size="10" fill="#A1A1AA" font-family="Inter, sans-serif" letter-spacing="2" text-transform="uppercase">RECAUDADO</text>
+    <text x="${cx}" y="${cy + 6}" text-anchor="middle" font-size="32" font-weight="700" fill="${INK}" font-family="Inter, sans-serif" letter-spacing="-1" class="tabular-nums">${escapeHTML(formatMXN(donut.recaudado))}</text>
+    <text x="${cx}" y="${cy + 30}" text-anchor="middle" font-size="11.5" font-weight="600" fill="${top.color}" font-family="Inter, sans-serif">${escapeHTML(topName)} · ${top.sharePct}%</text>
+    <text x="${cx}" y="${cy + 48}" text-anchor="middle" font-size="10" fill="#A1A1AA" font-family="Inter, sans-serif" class="tabular-nums">${donut.totalCategorias} categoría${donut.totalCategorias === 1 ? '' : 's'}</text>
+  `;
+
+  return `
+    <div class="chart-wrap donut-wrap" data-chart="stats-donut">
+      <svg viewBox="0 0 ${size} ${size}" role="img" aria-label="Distribución de cobranza por categoría" class="w-full max-w-[260px] mx-auto">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F4F4F5" stroke-width="${stroke}" />
+        ${segments}
+        ${centerHTML}
+      </svg>
+      <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
+    </div>
+  `;
+}
+
+// ============ CURVA SUAVIZADA ============ //
+
 function smoothPath(points) {
   if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
+  if (points.length === 1) return `M ${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`;
   const out = [`M ${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`];
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i - 1] || points[i];
@@ -515,87 +668,7 @@ function smoothPath(points) {
   return out.join(' ');
 }
 
-// Paleta consistente con la asignación de avatar por categoría
-const CATEGORY_PALETTE = [
-  '#F26B1F', '#27272A', '#1E3A5F', '#7C3AED', '#10B981',
-  '#0EA5E9', '#EAB308', '#EC4899', '#84CC16', '#F43F5E',
-];
-
-function pickCategoryColor(name, usedSet) {
-  // Mismo criterio estable que avatarGradient (orden alfabético)
-  const cats = state.categories.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-  const baseIdx = Math.max(0, cats.indexOf(name)) % CATEGORY_PALETTE.length;
-  if (!usedSet.has(baseIdx)) return CATEGORY_PALETTE[baseIdx];
-  for (let i = 1; i < CATEGORY_PALETTE.length; i++) {
-    const cand = (baseIdx + i) % CATEGORY_PALETTE.length;
-    if (!usedSet.has(cand)) return CATEGORY_PALETTE[cand];
-  }
-  return CATEGORY_PALETTE[baseIdx];
-}
-
-function donutChart(donut) {
-  const size = 220;
-  const cx = size / 2, cy = size / 2;
-  const r  = 90;
-  const stroke = 22;
-  const C = 2 * Math.PI * r;
-
-  if (donut.total === 0) {
-    return `<p class="text-sm text-zinc-500 py-6 text-center">Sin datos para graficar.</p>`;
-  }
-
-  let offset = 0;
-  const segments = donut.segments.map((s) => {
-    const frac = s.paid / donut.total;
-    const dash = frac * C;
-    const gap  = C - dash;
-    const path = `
-      <circle class="donut-seg" cx="${cx}" cy="${cy}" r="${r}"
-              fill="none" stroke="${escapeHTML(s.color)}" stroke-width="${stroke}"
-              stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-offset}"
-              transform="rotate(-90 ${cx} ${cy})"
-              data-name="${escapeHTML(s.name)}" data-paid="${s.paid}" data-pending="${s.pending}" data-total="${s.total}" data-pct="${s.pct}"
-              style="cursor:pointer; transition: opacity 120ms;" />
-    `;
-    offset += dash;
-    return path;
-  }).join('');
-
-  // Center label: total recaudado + % global
-  const centerHTML = `
-    <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="11" fill="#71717A" font-family="Inter, sans-serif">Recaudado</text>
-    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="20" font-weight="700" fill="#09090B" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(formatMXN(donut.recaudado))}</text>
-    <text x="${cx}" y="${cy + 32}" text-anchor="middle" font-size="10.5" fill="#71717A" font-family="Inter, sans-serif" class="tabular-nums">${donut.totalCategorias} categoría${donut.totalCategorias === 1 ? '' : 's'}</text>
-  `;
-
-  // Leyenda
-  const legend = donut.segments.map((s) => `
-    <li class="flex items-center justify-between gap-3 py-1.5 border-b border-zinc-100 last:border-0">
-      <span class="flex items-center gap-2 min-w-0">
-        <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style="background:${escapeHTML(s.color)}"></span>
-        <span class="text-sm text-zinc-700 truncate">${escapeHTML(s.name)}</span>
-      </span>
-      <span class="text-xs text-zinc-500 tabular-nums shrink-0">${s.sharePct}%</span>
-    </li>
-  `).join('');
-
-  return `
-    <div class="chart-wrap" data-chart="stats-donut">
-      <div class="flex flex-col items-center gap-3">
-        <svg viewBox="0 0 ${size} ${size}" role="img" aria-label="Distribución de cobranza por categoría" class="w-full max-w-[240px]">
-          <!-- Track -->
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F4F4F5" stroke-width="${stroke}" />
-          ${segments}
-          ${centerHTML}
-        </svg>
-        <ul class="w-full self-stretch">${legend}</ul>
-      </div>
-      <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
-    </div>
-  `;
-}
-
-// ============ TOOLTIPS DE GRÁFICAS ============ //
+// ============ TOOLTIPS ============ //
 
 function wireStatsTooltip(root) {
   root.querySelectorAll('.chart-wrap').forEach((wrap) => {
@@ -748,9 +821,11 @@ function computeBarData(f) {
   const labels = months.map((m) => monthShort(m.month - 1));
   const paid = months.map((m) => m.paid);
   const pending = months.map((m) => m.pending);
-  const total = months.reduce((s, m) => s + m.paid, 0);
+  const total = paid.reduce((s, v) => s + v, 0);
   const max = Math.max(...paid.map((v, i) => v + pending[i]), 0);
-  return { labels, paid, pending, total, max };
+  const peakIdx = paid.indexOf(Math.max(...paid));
+  const peakVal = peakIdx >= 0 ? paid[peakIdx] : 0;
+  return { labels, paid, pending, total, max, peakIdx, peakVal, year: f.year };
 }
 
 function computeLineData(f) {
@@ -762,7 +837,18 @@ function computeLineData(f) {
   const avg = withData.length > 0
     ? Math.round(withData.reduce((s, v) => s + v, 0) / withData.length)
     : 0;
-  return { labels, values, totals, avg, max: 100 };
+  const max = withData.length > 0 ? Math.max(...withData) : 0;
+  const min = withData.length > 0 ? Math.min(...withData) : 0;
+  const maxIdx = values.indexOf(max);
+  const minIdx = values.indexOf(min);
+  return { labels, values, totals, avg, max, min, maxIdx, minIdx };
+}
+
+function computeSparkData(f) {
+  const months = monthAggregate(f.year);
+  const values = months.map((m) => m.paid);
+  const max = Math.max(...values, 0);
+  return { values, max };
 }
 
 function computeByCategory(f) {
@@ -780,7 +866,9 @@ function computeByCategory(f) {
     const color = pickCategoryColor(c.name, used);
     used.add(CATEGORY_PALETTE.indexOf(color));
     return { name: c.name, paid, pending, total, pct, color };
-  }).filter((c) => c.total > 0);
+  })
+  .filter((c) => c.total > 0)
+  .sort((a, b) => b.paid - a.paid); // Ordenar por recaudado desc
 }
 
 function computeCategoryShare(byCategory, stats) {
@@ -797,17 +885,24 @@ function computeCategoryShare(byCategory, stats) {
     color: c.color,
     sharePct: total > 0 ? Math.round((c.paid / total) * 100) : 0,
   }));
-  return {
-    segments,
-    total,
-    recaudado: total,
-    totalCategorias: byCategory.length,
-  };
+  return { segments, total, recaudado: total, totalCategorias: byCategory.length };
 }
 
-function deltaPct(current, previous) {
-  if (!previous || previous === 0) return current === 0 ? 0 : 100;
-  return ((current - previous) / previous) * 100;
+// Paleta consistente con la asignación de avatar por categoría
+const CATEGORY_PALETTE = [
+  '#F26B1F', '#27272A', '#1E3A5F', '#7C3AED', '#10B981',
+  '#0EA5E9', '#EAB308', '#EC4899', '#84CC16', '#F43F5E',
+];
+
+function pickCategoryColor(name, usedSet) {
+  const cats = state.categories.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  const baseIdx = Math.max(0, cats.indexOf(name)) % CATEGORY_PALETTE.length;
+  if (!usedSet.has(baseIdx)) return CATEGORY_PALETTE[baseIdx];
+  for (let i = 1; i < CATEGORY_PALETTE.length; i++) {
+    const cand = (baseIdx + i) % CATEGORY_PALETTE.length;
+    if (!usedSet.has(cand)) return CATEGORY_PALETTE[cand];
+  }
+  return CATEGORY_PALETTE[baseIdx];
 }
 
 function periodLabel(f) {
@@ -816,7 +911,6 @@ function periodLabel(f) {
   return `${monthName(Number(f.month) - 1)} ${y}`;
 }
 
-// Helpers
 function niceCeil(n) {
   if (n <= 0) return 1;
   const exp = Math.floor(Math.log10(n));
