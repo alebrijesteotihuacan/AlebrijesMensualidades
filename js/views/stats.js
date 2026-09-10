@@ -298,8 +298,8 @@ function barsChart(data) {
     const hasData = total > 0;
     const isCurrent = i === currentMonthIdx;
 
-    const r = Math.min(cornerR, paidH / 2 || cornerR, pendingH / 2 || cornerR);
-    // Path con esquinas superiores redondeadas, base plana
+    // Path: esquinas SUPERIORES redondeadas, base plana. Es la forma del
+    // segmento TOP de la pila (el más alto visible).
     const topRect = (x0, y0, w, h, radius) => {
       if (h <= 0) return '';
       const rr = Math.min(radius, h / 2);
@@ -310,6 +310,26 @@ function barsChart(data) {
       ? `<rect x="${padL + stepX * i + 2}" y="${padT - 14}" width="${stepX - 4}" height="${plotH + 16}" rx="6" fill="#FAFAFA" />`
       : '';
 
+    // Reglas de dibujo para evitar solapamientos / gaps en las esquinas:
+    // - Si SOLO hay paid  → paid es el top visible → esquinas SUP redondeadas
+    // - Si SOLO hay pending → pending es el top visible → esquinas SUP redondeadas
+    // - Si hay ambos      → paid es segmento inferior (esquinas planas)
+    //                        pending es el top visible (esquinas SUP redondeadas)
+    let paidEl = '';
+    let pendingEl = '';
+    if (paid > 0) {
+      if (pending > 0) {
+        // Paid queda debajo, sin redondeo (su top se pega al flat-bottom de pending)
+        paidEl = `<rect x="${x}" y="${yPaidTop}" width="${barW}" height="${Math.max(paidH, 0.5)}" fill="#09090B" />`;
+      } else {
+        // Paid es el único segmento y el visual top
+        paidEl = `<path d="${topRect(x, yPaidTop, barW, paidH, cornerR)}" fill="#09090B" />`;
+      }
+    }
+    if (pending > 0) {
+      pendingEl = `<path d="${topRect(x, yPendingTop, barW, pendingH, cornerR)}" fill="#E4E4E7" />`;
+    }
+
     const valueLabel = paid > 0
       ? `<text x="${x + barW / 2}" y="${yPaidTop - 8}" text-anchor="middle" font-size="10" font-weight="600" fill="#09090B" font-family="Inter, sans-serif" class="tabular-nums chart-value-label">${escapeHTML(compactMoney(paid))}</text>`
       : '';
@@ -318,8 +338,8 @@ function barsChart(data) {
       ${currentBg}
       <g class="stat-bar" data-label="${escapeHTML(lab)}" data-paid="${paid}" data-pending="${pending}" data-total="${total}" style="cursor:pointer;">
         ${hasData ? `
-          ${pending > 0 ? `<path d="${topRect(x, yPendingTop, barW, pendingH, cornerR)}" fill="#E4E4E7" />` : ''}
-          ${paid > 0 ? `<path d="${topRect(x, yPaidTop, barW, paidH, cornerR)}" fill="#09090B" />` : ''}
+          ${paidEl}
+          ${pendingEl}
           ${valueLabel}
         ` : `
           <rect x="${x}" y="${baselineY - 2}" width="${barW}" height="2" fill="#E4E4E7" rx="1" />
@@ -386,11 +406,12 @@ function linesChart(data) {
   const avg = data.avg;
   const avgY = baselineY - (avg / maxV) * plotH;
   const avgLabelX = padL + 6;
+  const avgLabelY = Math.max(16, Math.min(avgY, baselineY - 10));
   const avgLine = `
     <line x1="${padL}" y1="${avgY}" x2="${W - padR}" y2="${avgY}"
           stroke="#A1A1AA" stroke-width="1" stroke-dasharray="3 4" opacity="0.7" />
-    <rect x="${avgLabelX}" y="${avgY - 16}" width="100" height="14" rx="7" fill="#FFFFFF" />
-    <text x="${avgLabelX + 8}" y="${avgY - 6}" font-size="10" font-weight="500" fill="#52525B" font-family="Inter, sans-serif">Promedio ${avg}%</text>
+    <rect x="${avgLabelX}" y="${avgLabelY - 16}" width="100" height="14" rx="7" fill="#FFFFFF" />
+    <text x="${avgLabelX + 8}" y="${avgLabelY - 6}" font-size="10" font-weight="500" fill="#52525B" font-family="Inter, sans-serif">Promedio ${avg}%</text>
   `;
 
   // Path suavizado (Catmull-Rom uniforme)
@@ -402,9 +423,11 @@ function linesChart(data) {
 
   // Dots con halo + etiqueta destacada en peak/trough/current
   const sortedVals = points.map((p) => p.v);
-  const maxIdx = sortedVals.indexOf(Math.max(...sortedVals));
-  const minIdx = sortedVals.indexOf(Math.min(...sortedVals));
+  const maxIdx = sortedVals.length > 0 ? sortedVals.indexOf(Math.max(...sortedVals)) : -1;
+  const minIdx = sortedVals.length > 0 ? sortedVals.indexOf(Math.min(...sortedVals)) : -1;
   const highlightIdxs = new Set([maxIdx, minIdx, currentMonthIdx].filter((i) => i >= 0));
+  const BADGE_HALF_H = 9; // la mitad aprox. del badge (rect y=-12 height=18)
+  const BADGE_HALF_W = 19; // ancho aprox. del badge (rect x=-18 width=36) + margen
 
   const dots = points.map((p, i) => {
     const isHighlight = highlightIdxs.has(i);
@@ -412,11 +435,17 @@ function linesChart(data) {
     const dotR = isCurrent ? 5 : isHighlight ? 4.5 : 3.5;
     const haloR = isCurrent ? 9 : isHighlight ? 8 : 6;
     const labelText = isHighlight || isCurrent ? `${p.v}%` : '';
-    const labelY = p.y - haloR - 8;
+
+    // Posición del badge clampeada al área visible
+    let labelY = p.y - haloR - 8;
+    labelY = Math.max(labelY, BADGE_HALF_H);          // no salir por arriba
+    labelY = Math.min(labelY, baselineY - BADGE_HALF_H); // no salir por abajo
+    const labelX = Math.max(BADGE_HALF_W, Math.min(p.x, W - BADGE_HALF_W));
+
     return `
       <g class="stat-dot" data-label="${escapeHTML(p.lab)}" data-value="${p.v}" data-total="${p.total}" style="cursor:pointer;">
         ${labelText ? `
-          <g transform="translate(${p.x}, ${labelY})">
+          <g transform="translate(${labelX}, ${labelY})">
             <rect x="-18" y="-12" width="36" height="18" rx="9" fill="#09090B" />
             <text x="0" y="1" text-anchor="middle" font-size="10.5" font-weight="600" fill="#FFFFFF" font-family="Inter, sans-serif" class="tabular-nums">${labelText}</text>
           </g>
