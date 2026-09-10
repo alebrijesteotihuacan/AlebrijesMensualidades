@@ -74,7 +74,7 @@ function paint(root) {
           </div>
           <span class="status"><span class="status-dot dot-neutral"></span><span class="tabular-nums">${stats.jugadoresActivos} jugador${stats.jugadoresActivos === 1 ? '' : 'es'} activo${stats.jugadoresActivos === 1 ? '' : 's'}</span></span>
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-100">
+        <div class="kpi-grid">
           ${statBlock({
             label: 'Recaudado',
             value: formatMXN(stats.recaudado),
@@ -232,17 +232,20 @@ function deltaInfo(current, previous, isPercent = false, lowerIsBetter = false) 
 
 function statBlock({ label, value, sub, delta, tone, bigValue }) {
   const dotClass = tone === 'success' ? 'dot-success' : tone === 'warning' ? 'dot-warning' : tone === 'danger' ? 'dot-danger' : 'dot-neutral';
-  const deltaClass = delta ? `text-${delta.tone === 'success' ? 'success' : delta.tone === 'danger' ? 'danger' : 'muted'}` : 'text-zinc-400';
+  const accentColor = tone === 'success' ? '#10B981' : tone === 'warning' ? '#F59E0B' : tone === 'danger' ? '#EF4444' : '#52525B';
+  const deltaBg = delta && delta.tone === 'success' ? '#ECFDF5' : delta && delta.tone === 'danger' ? '#FEF2F2' : '#F4F4F5';
+  const deltaTextClass = delta && delta.tone === 'success' ? 'text-emerald-700' : delta && delta.tone === 'danger' ? 'text-red-700' : 'text-zinc-600';
   const deltaHTML = delta ? `
-    <span class="inline-flex items-center gap-1 mt-1.5 text-xs font-medium ${deltaClass}">
-      <span>${delta.arrow}</span>
-      <span class="tabular-nums">${escapeHTML(delta.text)}</span>
-      <span class="text-zinc-400 font-normal">vs ant.</span>
+    <span class="kpi-delta-pill" style="background: ${deltaBg}">
+      <span class="${deltaTextClass}">${delta.arrow}</span>
+      <span class="tabular-nums ${deltaTextClass}">${escapeHTML(delta.text)}</span>
+      <span class="text-zinc-400 font-normal text-[10.5px]">vs anterior</span>
     </span>
   ` : '';
   return `
-    <div class="px-4 sm:px-6 first:pl-0 sm:first:pl-6 last:pr-0 sm:last:pr-6">
-      <div class="flex items-center gap-1.5 mb-1">
+    <div class="kpi-block">
+      <div class="kpi-accent" style="background: ${accentColor}"></div>
+      <div class="kpi-head">
         <span class="status-dot ${dotClass}"></span>
         <p class="stat-label">${escapeHTML(label)}</p>
       </div>
@@ -457,11 +460,18 @@ function linesChart(data, currentMonthIdx) {
               <stop offset="0%" stop-color="#09090B" stop-opacity="0.18"/>
               <stop offset="100%" stop-color="#09090B" stop-opacity="0"/>
             </linearGradient>
+            <clipPath id="lineChartClip">
+              <!-- Clip area al chart, recortando justo en el 0% para que la curva
+                   Catmull-Rom (que puede hacer overshoot) no se vea bajar de 0. -->
+              <rect x="${padL - 1}" y="${padT - 2}" width="${plotW + 2}" height="${plotH + 2}" />
+            </clipPath>
           </defs>
           ${gridLines.join('')}
           ${yLabels.join('')}
-          <path d="${areaPath}" fill="url(#lineAreaFill)" />
-          <path d="${smooth}" fill="none" stroke="#09090B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+          <g clip-path="url(#lineChartClip)">
+            <path d="${areaPath}" fill="url(#lineAreaFill)" />
+            <path d="${smooth}" fill="none" stroke="#09090B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+          </g>
           <line x1="${padL}" y1="${avgY}" x2="${W - padR}" y2="${avgY}" stroke="${BRAND}" stroke-width="1" stroke-dasharray="3 4" opacity="0.55" />
           ${dots}
           ${avgLabel}
