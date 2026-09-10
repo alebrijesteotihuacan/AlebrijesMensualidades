@@ -259,25 +259,31 @@ function catRow(c) {
 
 function barsChart(data) {
   // data: { labels: ['Ene',...], paid:[..], pending:[..], total, max }
-  const W = 600, H = 280;
-  const padL = 50, padR = 16, padT = 16, padB = 36;
+  const W = 600, H = 320;
+  const padL = 60, padR = 24, padT = 36, padB = 44;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const n = data.labels.length;
-  const gapRatio = 0.32;
+  const gapRatio = 0.42;
   const barW = (plotW / n) * (1 - gapRatio);
   const stepX = plotW / n;
   const maxV = Math.max(1, data.max);
   const niceMax = niceCeil(maxV);
   const gridSteps = 4;
+  const baselineY = padT + plotH;
+  const cornerR = Math.min(4, Math.max(2, barW / 4));
+
+  const today = new Date();
+  const currentMonthIdx = (_filter.year === today.getFullYear()) ? today.getMonth() : -1;
 
   const gridLines = [];
   const yLabels = [];
   for (let i = 0; i <= gridSteps; i++) {
     const v = (niceMax / gridSteps) * i;
-    const y = padT + plotH - (v / niceMax) * plotH;
-    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#F4F4F5" stroke-width="1" />`);
-    yLabels.push(`<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(compactMoney(v))}</text>`);
+    const y = baselineY - (v / niceMax) * plotH;
+    const isZero = i === 0;
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${isZero ? '#D4D4D8' : '#F4F4F5'}" stroke-width="1" ${isZero ? '' : 'stroke-dasharray="2 4"'} />`);
+    yLabels.push(`<text x="${padL - 10}" y="${y + 3.5}" text-anchor="end" font-size="10" fill="#A1A1AA" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(compactMoney(v))}</text>`);
   }
 
   const bars = data.labels.map((lab, i) => {
@@ -287,32 +293,54 @@ function barsChart(data) {
     const x = padL + stepX * i + (stepX - barW) / 2;
     const paidH = total > 0 ? (paid / niceMax) * plotH : 0;
     const pendingH = total > 0 ? (pending / niceMax) * plotH : 0;
-    const yBase = padT + plotH;
-    const yPaidTop = yBase - paidH;
+    const yPaidTop = baselineY - paidH;
     const yPendingTop = yPaidTop - pendingH;
     const hasData = total > 0;
+    const isCurrent = i === currentMonthIdx;
+
+    const r = Math.min(cornerR, paidH / 2 || cornerR, pendingH / 2 || cornerR);
+    // Path con esquinas superiores redondeadas, base plana
+    const topRect = (x0, y0, w, h, radius) => {
+      if (h <= 0) return '';
+      const rr = Math.min(radius, h / 2);
+      return `M ${x0},${y0 + h} L ${x0},${y0 + rr} Q ${x0},${y0} ${x0 + rr},${y0} L ${x0 + w - rr},${y0} Q ${x0 + w},${y0} ${x0 + w},${y0 + rr} L ${x0 + w},${y0 + h} Z`;
+    };
+
+    const currentBg = isCurrent
+      ? `<rect x="${padL + stepX * i + 2}" y="${padT - 14}" width="${stepX - 4}" height="${plotH + 16}" rx="6" fill="#FAFAFA" />`
+      : '';
+
+    const valueLabel = paid > 0
+      ? `<text x="${x + barW / 2}" y="${yPaidTop - 8}" text-anchor="middle" font-size="10" font-weight="600" fill="#09090B" font-family="Inter, sans-serif" class="tabular-nums chart-value-label">${escapeHTML(compactMoney(paid))}</text>`
+      : '';
+
     return `
+      ${currentBg}
       <g class="stat-bar" data-label="${escapeHTML(lab)}" data-paid="${paid}" data-pending="${pending}" data-total="${total}" style="cursor:pointer;">
         ${hasData ? `
-          ${pending > 0 ? `<rect x="${x}" y="${yPendingTop}" width="${barW}" height="${Math.max(pendingH, 0.5)}" fill="#E4E4E7" rx="2" />` : ''}
-          ${paid > 0 ? `<rect x="${x}" y="${yPaidTop}" width="${barW}" height="${Math.max(paidH, 0.5)}" fill="#09090B" rx="2" />` : ''}
+          ${pending > 0 ? `<path d="${topRect(x, yPendingTop, barW, pendingH, cornerR)}" fill="#E4E4E7" />` : ''}
+          ${paid > 0 ? `<path d="${topRect(x, yPaidTop, barW, paidH, cornerR)}" fill="#09090B" />` : ''}
+          ${valueLabel}
         ` : `
-          <rect x="${x}" y="${yBase - 2}" width="${barW}" height="2" fill="#E4E4E7" rx="1" />
+          <rect x="${x}" y="${baselineY - 2}" width="${barW}" height="2" fill="#E4E4E7" rx="1" />
         `}
-        <rect class="stat-bar-hit" x="${padL + stepX * i}" y="${padT}" width="${stepX}" height="${plotH}" fill="transparent" />
+        <rect class="stat-bar-hit" x="${padL + stepX * i}" y="${padT - 16}" width="${stepX}" height="${plotH + 18}" fill="transparent" />
       </g>
     `;
   }).join('');
 
   const xLabels = data.labels.map((lab, i) => {
     const x = padL + stepX * i + stepX / 2;
-    return `<text x="${x}" y="${H - padB + 18}" text-anchor="middle" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
+    const isCurrent = i === currentMonthIdx;
+    const fill = isCurrent ? '#09090B' : '#71717A';
+    const weight = isCurrent ? '600' : '400';
+    return `<text x="${x}" y="${H - padB + 22}" text-anchor="middle" font-size="10" fill="${fill}" font-weight="${weight}" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
   }).join('');
 
   return `
     <div class="chart-wrap" data-chart="stats-bars">
       <div class="w-full overflow-x-auto">
-        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras apiladas: recaudación vs pendiente por mes" class="w-full h-auto" style="min-width: 480px;">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras apiladas: recaudación vs pendiente por mes" class="w-full h-auto chart-svg" style="min-width: 480px;">
           ${gridLines.join('')}
           ${yLabels.join('')}
           ${bars}
@@ -325,49 +353,80 @@ function barsChart(data) {
 }
 
 function linesChart(data) {
-  const W = 600, H = 280;
-  const padL = 44, padR = 16, padT = 16, padB = 36;
+  const W = 600, H = 320;
+  const padL = 52, padR = 24, padT = 28, padB = 44;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const n = data.values.length;
   const stepX = plotW / (n - 1 || 1);
   const minV = 0, maxV = 100;
+  const baselineY = padT + plotH;
 
+  const today = new Date();
+  const currentMonthIdx = (_filter.year === today.getFullYear()) ? today.getMonth() : -1;
+
+  // Grid dashed + baseline sólido
   const gridSteps = 4;
   const gridLines = [];
   const yLabels = [];
   for (let i = 0; i <= gridSteps; i++) {
     const v = (maxV / gridSteps) * i;
-    const y = padT + plotH - (v / maxV) * plotH;
-    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#F4F4F5" stroke-width="1" />`);
-    yLabels.push(`<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${v}%</text>`);
+    const y = baselineY - (v / maxV) * plotH;
+    const isZero = i === 0;
+    gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${isZero ? '#D4D4D8' : '#F4F4F5'}" stroke-width="1" ${isZero ? '' : 'stroke-dasharray="2 4"'} />`);
+    yLabels.push(`<text x="${padL - 10}" y="${y + 3.5}" text-anchor="end" font-size="10" fill="#A1A1AA" font-family="Inter, sans-serif">${v}%</text>`);
   }
 
   const points = data.values.map((v, i) => {
     const x = padL + stepX * i;
-    const y = padT + plotH - (v / maxV) * plotH;
+    const y = baselineY - (v / maxV) * plotH;
     return { x, y, v, lab: data.labels[i], total: data.totals[i] };
   });
 
   const avg = data.avg;
-  const avgY = padT + plotH - (avg / maxV) * plotH;
+  const avgY = baselineY - (avg / maxV) * plotH;
+  const avgLabelX = padL + 6;
   const avgLine = `
     <line x1="${padL}" y1="${avgY}" x2="${W - padR}" y2="${avgY}"
-          stroke="#A1A1AA" stroke-width="1" stroke-dasharray="3 3" />
-    <text x="${W - padR - 4}" y="${avgY - 4}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif">Promedio ${avg}%</text>
+          stroke="#A1A1AA" stroke-width="1" stroke-dasharray="3 4" opacity="0.7" />
+    <rect x="${avgLabelX}" y="${avgY - 16}" width="100" height="14" rx="7" fill="#FFFFFF" />
+    <text x="${avgLabelX + 8}" y="${avgY - 6}" font-size="10" font-weight="500" fill="#52525B" font-family="Inter, sans-serif">Promedio ${avg}%</text>
   `;
 
-  // Polyline + área sombreada
-  const baselineY = padT + plotH;
-  const areaPath = `M ${padL},${baselineY} ` + points.map((p) => `L ${p.x},${p.y}`).join(' ') + ` L ${padL + stepX * (n - 1)},${baselineY} Z`;
-  const polyline = points.map((p) => `${p.x},${p.y}`).join(' ');
+  // Path suavizado (Catmull-Rom uniforme)
+  const smooth = smoothPath(points);
+  // Área: bajar a baseline desde el primer punto, recorrer la curva,
+  // cerrar volviendo a baseline al final.
+  const curveTail = smooth.replace(/^M [^ ]+ /, ''); // quita "M x0,y0 "
+  const areaPath = `M ${points[0].x},${baselineY} L ${points[0].x},${points[0].y} ${curveTail} L ${points[n - 1].x},${baselineY} Z`;
 
-  const dots = points.map((p) => `
-    <g class="stat-dot" data-label="${escapeHTML(p.lab)}" data-value="${p.v}" data-total="${p.total}" style="cursor:pointer;">
-      <circle cx="${p.x}" cy="${p.y}" r="14" fill="transparent" />
-      <circle cx="${p.x}" cy="${p.y}" r="3.5" fill="white" stroke="#09090B" stroke-width="1.75" />
-    </g>
-  `).join('');
+  // Dots con halo + etiqueta destacada en peak/trough/current
+  const sortedVals = points.map((p) => p.v);
+  const maxIdx = sortedVals.indexOf(Math.max(...sortedVals));
+  const minIdx = sortedVals.indexOf(Math.min(...sortedVals));
+  const highlightIdxs = new Set([maxIdx, minIdx, currentMonthIdx].filter((i) => i >= 0));
+
+  const dots = points.map((p, i) => {
+    const isHighlight = highlightIdxs.has(i);
+    const isCurrent = i === currentMonthIdx;
+    const dotR = isCurrent ? 5 : isHighlight ? 4.5 : 3.5;
+    const haloR = isCurrent ? 9 : isHighlight ? 8 : 6;
+    const labelText = isHighlight || isCurrent ? `${p.v}%` : '';
+    const labelY = p.y - haloR - 8;
+    return `
+      <g class="stat-dot" data-label="${escapeHTML(p.lab)}" data-value="${p.v}" data-total="${p.total}" style="cursor:pointer;">
+        ${labelText ? `
+          <g transform="translate(${p.x}, ${labelY})">
+            <rect x="-18" y="-12" width="36" height="18" rx="9" fill="#09090B" />
+            <text x="0" y="1" text-anchor="middle" font-size="10.5" font-weight="600" fill="#FFFFFF" font-family="Inter, sans-serif" class="tabular-nums">${labelText}</text>
+          </g>
+        ` : ''}
+        <circle cx="${p.x}" cy="${p.y}" r="${haloR + 4}" fill="transparent" />
+        <circle cx="${p.x}" cy="${p.y}" r="${haloR}" fill="#09090B" opacity="0.08" />
+        <circle cx="${p.x}" cy="${p.y}" r="${dotR}" fill="#FFFFFF" stroke="#09090B" stroke-width="${isCurrent ? 2.25 : 1.75}" />
+      </g>
+    `;
+  }).join('');
 
   const allZero = data.values.every((v) => v === 0);
   const emptyMsg = allZero
@@ -376,23 +435,27 @@ function linesChart(data) {
 
   const xLabels = data.labels.map((lab, i) => {
     const x = padL + stepX * i;
-    return `<text x="${x}" y="${H - padB + 18}" text-anchor="middle" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
+    const isCurrent = i === currentMonthIdx;
+    const fill = isCurrent ? '#09090B' : '#71717A';
+    const weight = isCurrent ? '600' : '400';
+    return `<text x="${x}" y="${H - padB + 22}" text-anchor="middle" font-size="10" fill="${fill}" font-weight="${weight}" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
   }).join('');
 
   return `
     <div class="chart-wrap" data-chart="stats-lines">
       <div class="w-full overflow-x-auto">
-        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto" style="min-width: 480px;">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto chart-svg" style="min-width: 480px;">
           <defs>
             <linearGradient id="lineAreaFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#09090B" stop-opacity="0.18"/>
+              <stop offset="0%" stop-color="#09090B" stop-opacity="0.22"/>
+              <stop offset="60%" stop-color="#09090B" stop-opacity="0.08"/>
               <stop offset="100%" stop-color="#09090B" stop-opacity="0"/>
             </linearGradient>
           </defs>
           ${gridLines.join('')}
           ${yLabels.join('')}
           <path d="${areaPath}" fill="url(#lineAreaFill)" />
-          <polyline points="${polyline}" fill="none" stroke="#09090B" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round" />
+          <path d="${smooth}" fill="none" stroke="#09090B" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" />
           ${avgLine}
           ${dots}
           ${emptyMsg}
@@ -402,6 +465,25 @@ function linesChart(data) {
       <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
     </div>
   `;
+}
+
+/** Curva suavizada uniforme (Catmull-Rom → Bezier cúbica). */
+function smoothPath(points) {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
+  const out = [`M ${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`];
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    out.push(`C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`);
+  }
+  return out.join(' ');
 }
 
 // Paleta consistente con la asignación de avatar por categoría

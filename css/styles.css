@@ -644,11 +644,35 @@ input[type="search"]::-webkit-search-decoration {
   background: #F4F4F5;
 }
 
-/* hover sobre barras/dots: sutil highlight */
-.chart-wrap svg g[data-name]:hover rect[fill="#09090B"],
-.chart-wrap svg g.stat-bar:hover rect:first-child,
-.chart-wrap svg g.stat-dot:hover circle:last-child {
-  filter: brightness(0.85);
+/* ============================================
+   CHARTS — Tendencia mensual + Evolución
+   ============================================ */
+.chart-svg .stat-bar {
+  transition: opacity 140ms ease-out;
+}
+.chart-svg .stat-bar > path {
+  transition: opacity 140ms ease-out;
+}
+.chart-svg .stat-bar:hover > path {
+  opacity: 0.78;
+}
+.chart-svg .chart-value-label {
+  transition: opacity 140ms ease-out;
+}
+.chart-svg .stat-bar:hover .chart-value-label {
+  opacity: 0.6;
+}
+.chart-svg .stat-dot circle {
+  transition: r 140ms ease-out, stroke-width 140ms ease-out;
+}
+.chart-svg .stat-dot:hover circle:last-of-type {
+  stroke-width: 2.25;
+}
+
+/* En pantallas chicas, el padding extra de los charts puede apretarse.
+   Mantener el ancho mínimo legible. */
+@media (max-width: 640px) {
+  .chart-svg { min-width: 540px !important; }
 }
 
 /* ============================================
