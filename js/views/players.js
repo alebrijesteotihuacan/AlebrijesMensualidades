@@ -3,7 +3,6 @@
 
 import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
 import { players, payments } from '../services/firestore.js';
-import { classifyAdeudo, adeudoLabel } from '../services/adeudo.js';
 import { daysOverdue, formatMXN, formatDate, monthName } from '../utils/dates.js';
 import { getAutoPendingPeriod } from '../services/autoPending.js';
 import { openPaymentForm } from './payments.js';
@@ -24,74 +23,108 @@ export function renderPlayers(root) {
       </header>
 
       <!-- Toolbar -->
-      <div class="card card-pad flex flex-col gap-3">
-        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-          <div class="sm:col-span-4">
-            <label class="label" for="f-search">Buscar</label>
-            <input id="f-search" type="search" placeholder="Nombre o teléfono…" class="input" autocomplete="off" />
+      <div class="card card-pad flex flex-col gap-4">
+        <!-- Search bar (prominente) -->
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+          </svg>
+          <input id="f-search" type="search" placeholder="Buscar por nombre o teléfono…" class="input pl-10 pr-10" autocomplete="off" aria-label="Buscar jugador" />
+          <button id="f-search-clear" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 icon-btn h-7 w-7" aria-label="Limpiar búsqueda" hidden>
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </button>
+        </div>
+
+        <!-- Filtros secundarios + botón limpiar (alineados a la derecha) -->
+        <div class="flex flex-col sm:flex-row sm:items-end gap-2.5">
+          <div class="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div>
+              <label class="label" for="f-category">Categoría</label>
+              <select id="f-category" class="select">
+                <option value="">Todas</option>
+                ${state.categories.map((c) => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="label" for="f-dayrange">Día de pago</label>
+              <select id="f-dayrange" class="select">
+                <option value="">Todos</option>
+                <option value="1-14">1 al 14</option>
+                <option value="15-31">15 al 31</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="f-status">Estado</label>
+              <select id="f-status" class="select">
+                <option value="">Todos</option>
+                <option value="paid">Al día</option>
+                <option value="pending">Pendientes</option>
+                <option value="adeudo">Con adeudo</option>
+              </select>
+            </div>
           </div>
-          <div class="sm:col-span-2">
-            <label class="label" for="f-category">Categoría</label>
-            <select id="f-category" class="select">
-              <option value="">Todas</option>
-              ${state.categories.map((c) => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="sm:col-span-2">
-            <label class="label" for="f-dayrange">Día de pago</label>
-            <select id="f-dayrange" class="select">
-              <option value="">Todos</option>
-              <option value="1-14">1 al 14</option>
-              <option value="15-31">15 al 31</option>
-            </select>
-          </div>
-          <div class="sm:col-span-2">
-            <label class="label" for="f-status">Estado</label>
-            <select id="f-status" class="select">
-              <option value="">Todos</option>
-              <option value="paid">Al día</option>
-              <option value="pending">Pendientes</option>
-              <option value="adeudo">Con adeudo</option>
-            </select>
-          </div>
-          <div class="sm:col-span-2 flex items-end">
-            <button id="f-clear" type="button" class="btn btn-ghost w-full">Limpiar</button>
-          </div>
+          <button id="f-clear" type="button" class="btn btn-secondary shrink-0" disabled>
+            <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            <span>Limpiar filtros</span>
+          </button>
         </div>
       </div>
 
-      <!-- Summary chips -->
-      <div class="flex flex-wrap items-center gap-1.5" id="players-summary"></div>
+      <!-- Result counter + active filter chips -->
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div id="players-count" class="flex items-baseline gap-1.5"></div>
+        <div id="active-chips" class="flex flex-wrap items-center gap-1.5"></div>
+      </div>
 
       <!-- Grid -->
       <div id="players-grid"></div>
     </section>
   `;
 
-  const grid    = root.querySelector('#players-grid');
-  const summary = root.querySelector('#players-summary');
-  const search  = root.querySelector('#f-search');
-  const catSel  = root.querySelector('#f-category');
-  const daySel  = root.querySelector('#f-dayrange');
-  const staSel  = root.querySelector('#f-status');
-  const clear   = root.querySelector('#f-clear');
-  const btnNew  = root.querySelector('#btn-new-player');
+  const grid      = root.querySelector('#players-grid');
+  const countEl   = root.querySelector('#players-count');
+  const chipsEl   = root.querySelector('#active-chips');
+  const search    = root.querySelector('#f-search');
+  const searchX   = root.querySelector('#f-search-clear');
+  const catSel    = root.querySelector('#f-category');
+  const daySel    = root.querySelector('#f-dayrange');
+  const staSel    = root.querySelector('#f-status');
+  const clear     = root.querySelector('#f-clear');
+  const btnNew    = root.querySelector('#btn-new-player');
 
   search.value = _filter.search;
   catSel.value = _filter.category;
   daySel.value = _filter.dayRange;
   staSel.value = _filter.status;
+  searchX.hidden = !_filter.search;
 
-  search.addEventListener('input',  (e) => { _filter.search = e.target.value.toLowerCase().trim(); paint(); });
+  search.addEventListener('input',  (e) => {
+    _filter.search = e.target.value.toLowerCase().trim();
+    searchX.hidden = !_filter.search;
+    paint();
+  });
+  searchX.addEventListener('click', () => {
+    _filter.search = '';
+    search.value = '';
+    searchX.hidden = true;
+    search.focus();
+    paint();
+  });
   catSel.addEventListener('change', (e) => { _filter.category = e.target.value; paint(); });
   daySel.addEventListener('change', (e) => { _filter.dayRange = e.target.value; paint(); });
   staSel.addEventListener('change', (e) => { _filter.status   = e.target.value; paint(); });
   clear.addEventListener('click', () => {
     _filter = { category: '', status: '', dayRange: '', search: '' };
-    search.value = ''; catSel.value = ''; daySel.value = ''; staSel.value = '';
+    search.value = ''; searchX.hidden = true;
+    catSel.value = ''; daySel.value = ''; staSel.value = '';
     paint();
+    search.focus();
   });
   btnNew.addEventListener('click', () => openPlayerForm(null));
+
+  function isFilterActive() {
+    return Boolean(_filter.search || _filter.category || _filter.dayRange || _filter.status);
+  }
 
   function paint() {
     const playersWithStatus = state.players.map(playerWithCurrentStatus);
@@ -101,12 +134,34 @@ export function renderPlayers(root) {
     const paid    = playersWithStatus.filter((p) => p.status === 'paid').length;
     const pending = playersWithStatus.filter((p) => p.status === 'pending').length;
     const adeudo  = playersWithStatus.filter((p) => p.status === 'adeudo').length;
-    summary.innerHTML = `
-      <span class="status"><span class="status-dot dot-neutral"></span><span>${total} totales</span></span>
-      <span class="status"><span class="status-dot dot-success"></span><span>${paid} al día</span></span>
-      ${pending > 0 ? `<span class="status"><span class="status-dot dot-warning"></span><span>${pending} pendientes</span></span>` : ''}
-      ${adeudo > 0 ? `<span class="status"><span class="status-dot dot-danger"></span><span>${adeudo} con adeudo</span></span>` : ''}
-    `;
+
+    // Result counter
+    const showing = filtered.length;
+    const hasFilters = isFilterActive();
+    if (total === 0) {
+      countEl.innerHTML = `<p class="text-sm text-zinc-500">Sin jugadores registrados.</p>`;
+    } else {
+      countEl.innerHTML = hasFilters
+        ? `<p class="text-sm text-zinc-700">
+             Mostrando <span class="font-semibold tabular-nums text-zinc-950">${showing}</span>
+             de <span class="font-semibold tabular-nums text-zinc-950">${total}</span>
+             jugador${total === 1 ? '' : 'es'}
+           </p>`
+        : `<p class="text-sm text-zinc-700">
+             <span class="font-semibold tabular-nums text-zinc-950">${total}</span>
+             jugador${total === 1 ? '' : 'es'} en plantilla
+           </p>
+           <span class="text-xs text-zinc-500 hidden sm:inline">·</span>
+           <div class="hidden sm:flex flex-wrap items-center gap-2.5 text-xs text-zinc-500 tabular-nums">
+             <span class="inline-flex items-center gap-1"><span class="status-dot dot-success"></span>${paid} al día</span>
+             ${pending > 0 ? `<span class="inline-flex items-center gap-1"><span class="status-dot dot-warning"></span>${pending} pendientes</span>` : ''}
+             ${adeudo > 0 ? `<span class="inline-flex items-center gap-1"><span class="status-dot dot-danger"></span>${adeudo} con adeudo</span>` : ''}
+           </div>`;
+    }
+
+    // Active filter chips
+    clear.disabled = !hasFilters;
+    chipsEl.innerHTML = hasFilters ? activeChipsHTML() : '';
 
     if (filtered.length === 0) {
       grid.innerHTML = state.players.length === 0
@@ -116,9 +171,18 @@ export function renderPlayers(root) {
             <p class="text-sm text-zinc-500 mt-1">Crea el primero con el botón "Nuevo jugador".</p>
           </div>`
         : `<div class="empty-state">
+            <div class="empty-state-icon">
+              <svg viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+            </div>
             <p class="font-semibold">Sin resultados</p>
-            <p class="text-sm text-zinc-500 mt-1">Ajusta los filtros.</p>
+            <p class="text-sm text-zinc-500 mt-1">Ningún jugador coincide con los filtros aplicados.</p>
+            <button type="button" id="empty-clear" class="btn btn-secondary btn-sm mt-3">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+              <span>Limpiar filtros</span>
+            </button>
           </div>`;
+      const emptyClear = root.querySelector('#empty-clear');
+      if (emptyClear) emptyClear.addEventListener('click', () => clear.click());
       return;
     }
 
@@ -137,6 +201,49 @@ export function renderPlayers(root) {
         }
       });
     });
+
+    // Wire chips (remove individual filter)
+    chipsEl.querySelectorAll('[data-remove-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.removeFilter;
+        _filter[key] = '';
+        if (key === 'category') catSel.value = '';
+        if (key === 'dayRange') daySel.value = '';
+        if (key === 'status')   staSel.value = '';
+        if (key === 'search')   { search.value = ''; searchX.hidden = true; }
+        paint();
+      });
+    });
+  }
+
+  function activeChipsHTML() {
+    const items = [];
+    if (_filter.search) {
+      const txt = _filter.search.length > 24 ? _filter.search.slice(0, 22) + '…' : _filter.search;
+      items.push(filterChip('search', `“${escapeHTML(txt)}”`));
+    }
+    if (_filter.category) items.push(filterChip('category', escapeHTML(_filter.category)));
+    if (_filter.dayRange) items.push(filterChip('dayRange', `Día ${_filter.dayRange.replace('-', ' al ')}`));
+    if (_filter.status)   items.push(filterChip('status', statusLabel(_filter.status)));
+    return items.join('');
+  }
+
+  function filterChip(key, label) {
+    return `
+      <span class="filter-chip">
+        <span>${label}</span>
+        <button type="button" data-remove-filter="${key}" class="filter-chip-x" aria-label="Quitar filtro ${escapeHTML(label)}">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        </button>
+      </span>
+    `;
+  }
+
+  function statusLabel(s) {
+    if (s === 'paid')    return 'Al día';
+    if (s === 'pending') return 'Pendientes';
+    if (s === 'adeudo')  return 'Con adeudo';
+    return s;
   }
 
   paint();
@@ -243,11 +350,13 @@ function statusInline(p) {
   if (p.exempt) return `<span class="status"><span class="status-dot dot-neutral"></span><span>Becado</span></span>`;
   if (p.status === 'paid')    return `<span class="status"><span class="status-dot dot-success"></span><span>Al día</span></span>`;
   if (p.status === 'pending') return `<span class="status"><span class="status-dot dot-warning"></span><span>Pendiente hoy</span></span>`;
-  // Adeudo: siempre usa daysOverdue() para no depender de que el caller
-  // haya enriquecido el objeto con diasAdeudo (caso del drawer).
+  // Adeudo: el texto "No podrá entrenar" SOLO aparece cuando el jugador
+  // ya no puede entrenar (>= 5 días de atraso). Para 1-4 días se muestra
+  // una etiqueta más neutra ("Adeudo") con los días.
   const dias = daysOverdue(p);
-  const dot = dias >= 5 ? 'dot-danger' : 'dot-warning';
-  const label = escapeHTML(adeudoLabel(classifyAdeudo(p, new Date())));
+  const noEntrena = dias >= 5;
+  const dot = noEntrena ? 'dot-danger' : 'dot-warning';
+  const label = noEntrena ? 'No podrá entrenar' : 'Adeudo';
   return `<span class="status"><span class="status-dot ${dot}"></span><span>${label} · ${dias}d</span></span>`;
 }
 

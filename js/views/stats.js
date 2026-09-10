@@ -1,6 +1,7 @@
 // js/views/stats.js
 // Vista Estadísticas: filtros por año/mes + KPIs del período
-// + comparación con período anterior + gráficas de barras y líneas.
+// + comparación con período anterior + gráficas mejoradas (barras apiladas,
+// línea con área, pastel por categoría).
 
 import { state, escapeHTML } from '../app.js';
 import { formatMXN, monthName, monthShort } from '../utils/dates.js';
@@ -20,11 +21,12 @@ export function renderStats(root) {
 }
 
 function paint(root) {
-  const stats = computeStats(_filter);
-  const prev  = computePrevious(_filter);
-  const bars  = computeBarData(_filter);     // 12 meses: recaudación
-  const lines = computeLineData(_filter);    // 12 meses: % cobrado
+  const stats     = computeStats(_filter);
+  const prev      = computePrevious(_filter);
+  const bars      = computeBarData(_filter);     // 12 meses: recaudación y pendiente
+  const lines     = computeLineData(_filter);    // 12 meses: % cobrado
   const byCategory = computeByCategory(_filter);
+  const donut     = computeCategoryShare(byCategory, stats);
 
   root.innerHTML = `
     <section class="flex flex-col gap-6">
@@ -33,7 +35,10 @@ function paint(root) {
           <p class="section-eyebrow">Período ${escapeHTML(periodLabel(_filter))}</p>
           <h1 class="section-title text-2xl sm:text-3xl mt-1">Estadísticas</h1>
         </div>
-        <button id="reset-filter" type="button" class="btn btn-ghost btn-sm">Período actual</button>
+        <button id="reset-filter" type="button" class="btn btn-secondary btn-sm">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.1a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.277z" clip-rule="evenodd"/></svg>
+          <span>Período actual</span>
+        </button>
       </header>
 
       <!-- Filtros -->
@@ -57,18 +62,18 @@ function paint(root) {
 
       <!-- KPIs del período seleccionado -->
       <div class="card card-pad">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-5">
           <div>
             <p class="section-eyebrow">Período seleccionado</p>
             <h2 class="text-base font-semibold mt-1">${escapeHTML(periodLabel(_filter))}</h2>
           </div>
-          <span class="status"><span class="status-dot dot-neutral"></span><span>${stats.totalPagos} pagos</span></span>
+          <span class="status"><span class="status-dot dot-neutral"></span><span>${stats.totalPagos} pago${stats.totalPagos === 1 ? '' : 's'}</span></span>
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-zinc-100">
-          ${statBlock('Recaudado', formatMXN(stats.recaudado), `${stats.cobradoPct}% cobrado`, 'success')}
-          ${statBlock('Pendiente', formatMXN(stats.pendiente), `${stats.pendientePagos} pago${stats.pendientePagos === 1 ? '' : 's'} sin completar`, 'warning')}
-          ${statBlock('% Cobrado',   `${stats.cobradoPct}%`,    `${stats.cobradoPagos} de ${stats.totalPagos} pago${stats.totalPagos === 1 ? '' : 's'}`, stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger')}
-          ${statBlock('Jugadores', stats.jugadoresUnicos,      `con al menos un pago`)}
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          ${kpiCard({ label: 'Recaudado', value: formatMXN(stats.recaudado), sub: `${stats.cobradoPct}% del esperado`, progress: { pct: stats.cobradoPct, tone: stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger' }, icon: 'cash' })}
+          ${kpiCard({ label: 'Pendiente', value: formatMXN(stats.pendiente), sub: `${stats.pendientePagos} pago${stats.pendientePagos === 1 ? '' : 's'} sin completar`, progress: { pct: 100 - stats.cobradoPct, tone: 'warning' }, icon: 'clock' })}
+          ${kpiCard({ label: '% Cobrado', value: `${stats.cobradoPct}%`, sub: `${stats.cobradoPagos} de ${stats.totalPagos}`, progress: { pct: stats.cobradoPct, tone: stats.cobradoPct >= 70 ? 'success' : stats.cobradoPct >= 40 ? 'warning' : 'danger' }, icon: 'check' })}
+          ${kpiCard({ label: 'Jugadores', value: stats.jugadoresUnicos, sub: `con al menos un pago`, icon: 'users' })}
         </div>
       </div>
 
@@ -79,6 +84,7 @@ function paint(root) {
             <p class="section-eyebrow">Comparación</p>
             <h2 class="text-base font-semibold mt-1">vs ${escapeHTML(periodLabel(prev.filter))}</h2>
           </div>
+          <span class="text-xs text-zinc-500">${prevStatsLabel(prev, stats)}</span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           ${compareBlock('Recaudado', formatMXN(stats.recaudado), formatMXN(prev.recaudado), deltaPct(stats.recaudado, prev.recaudado))}
@@ -87,22 +93,25 @@ function paint(root) {
         </div>
       </div>
 
-      <!-- GRÁFICA DE BARRAS: Recaudación por mes -->
+      <!-- GRÁFICA DE BARRAS APILADAS: Recaudación vs pendiente -->
       <div class="card card-pad">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
           <div>
-            <p class="section-eyebrow">Tendencia</p>
-            <h2 class="text-base font-semibold mt-1">Recaudación por mes · ${_filter.year}</h2>
+            <p class="section-eyebrow">Tendencia mensual</p>
+            <h2 class="text-base font-semibold mt-1">Recaudación vs Pendiente · ${_filter.year}</h2>
           </div>
-          <span class="text-xs text-zinc-500 tabular-nums">Total: ${formatMXN(bars.total)}</span>
+          <div class="flex items-center gap-3 text-xs">
+            <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#09090B"></span>Recaudado</span>
+            <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#E4E4E7"></span>Pendiente</span>
+          </div>
         </div>
         ${barsChart(bars)}
         <p class="text-[11px] text-zinc-500 mt-3">Pasa el cursor sobre una barra para ver el detalle del mes.</p>
       </div>
 
-      <!-- GRÁFICA DE LÍNEAS: % cobrado por mes -->
+      <!-- GRÁFICA DE LÍNEAS CON ÁREA: % cobrado por mes -->
       <div class="card card-pad">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
           <div>
             <p class="section-eyebrow">Evolución</p>
             <h2 class="text-base font-semibold mt-1">% Cobrado por mes · ${_filter.year}</h2>
@@ -113,9 +122,9 @@ function paint(root) {
         <p class="text-[11px] text-zinc-500 mt-3">Pasa el cursor sobre un punto para ver el detalle del mes.</p>
       </div>
 
-      <!-- Por categoría del período -->
+      <!-- DISTRIBUCIÓN POR CATEGORÍA: tabla + pastel -->
       <div class="card card-pad">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between mb-4">
           <div>
             <p class="section-eyebrow">Por categoría</p>
             <h2 class="text-base font-semibold mt-1">Cobranza del período</h2>
@@ -124,21 +133,28 @@ function paint(root) {
         </div>
         ${byCategory.length === 0
           ? `<p class="text-sm text-zinc-500 py-6 text-center">Sin categorías con pagos en este período.</p>`
-          : `<div class="table-wrap overflow-x-auto">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Categoría</th>
-                    <th class="text-right">Recaudado</th>
-                    <th class="text-right">Pendiente</th>
-                    <th class="text-right hidden sm:table-cell">Total esperado</th>
-                    <th class="text-right">% Cobrado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${byCategory.map(catRow).join('')}
-                </tbody>
-              </table>
+          : `<div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+              <div class="lg:col-span-3">
+                <div class="table-wrap overflow-x-auto">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>Categoría</th>
+                        <th class="text-right">Recaudado</th>
+                        <th class="text-right">Pendiente</th>
+                        <th class="text-right hidden sm:table-cell">Total esperado</th>
+                        <th class="text-right">% Cobrado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${byCategory.map(catRow).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="lg:col-span-2">
+                ${donutChart(donut)}
+              </div>
             </div>`
         }
       </div>
@@ -166,18 +182,37 @@ function paint(root) {
 
 // ============ COMPONENTES UI ============ //
 
-function statBlock(label, value, sub, tone) {
-  const dotClass = tone === 'success' ? 'dot-success' : tone === 'warning' ? 'dot-warning' : tone === 'danger' ? 'dot-danger' : 'dot-neutral';
+const KPI_SVG = {
+  cash:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+  clock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  check:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>',
+  users:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+};
+
+function kpiCard({ label, value, sub, progress, icon }) {
+  const tone = progress?.tone || 'neutral';
+  const toneColor = tone === 'success' ? '#10B981' : tone === 'warning' ? '#F59E0B' : tone === 'danger' ? '#EF4444' : '#52525B';
+  const progressHTML = progress ? `
+    <div class="kpi-progress" aria-hidden="true">
+      <div class="kpi-progress-bar" style="width: ${Math.min(100, progress.pct)}%; background: ${toneColor};"></div>
+    </div>
+  ` : '';
   return `
-    <div class="px-4 sm:px-6 first:pl-0 sm:first:pl-6 last:pr-0 sm:last:pr-6">
-      <p class="stat-label">${escapeHTML(label)}</p>
-      <p class="stat-value mt-1">${value}</p>
-      <div class="flex items-center gap-1.5 mt-1.5">
-        <span class="status-dot ${dotClass}"></span>
-        <p class="stat-sub">${escapeHTML(sub)}</p>
+    <div class="kpi-card kpi-card--${tone}">
+      <div class="kpi-head">
+        <span class="kpi-icon" style="color: ${toneColor};">${KPI_SVG[icon] || ''}</span>
+        <p class="kpi-label">${escapeHTML(label)}</p>
       </div>
+      <p class="kpi-value tabular-nums">${value}</p>
+      <p class="kpi-sub">${escapeHTML(sub)}</p>
+      ${progressHTML}
     </div>
   `;
+}
+
+function prevStatsLabel(prev, stats) {
+  if (stats.recaudado === 0 && prev.recaudado === 0) return 'Sin datos';
+  return 'Comparado con el período anterior';
 }
 
 function compareBlock(label, current, previous, delta, isPercent = false) {
@@ -203,9 +238,10 @@ function compareBlock(label, current, previous, delta, isPercent = false) {
 }
 
 function catRow(c) {
+  const swatch = `<span class="inline-block w-2.5 h-2.5 rounded-sm mr-2 align-middle" style="background:${escapeHTML(c.color)}"></span>`;
   return `
     <tr>
-      <td class="font-medium">${escapeHTML(c.name)}</td>
+      <td class="font-medium">${swatch}${escapeHTML(c.name)}</td>
       <td class="text-right tabular-nums font-semibold">${formatMXN(c.paid)}</td>
       <td class="text-right tabular-nums text-zinc-600">${formatMXN(c.pending)}</td>
       <td class="text-right tabular-nums text-zinc-500 hidden sm:table-cell">${formatMXN(c.total)}</td>
@@ -222,19 +258,19 @@ function catRow(c) {
 // ============ GRÁFICAS SVG ============ //
 
 function barsChart(data) {
-  // data: { labels: ['Ene',...], values: [n1,...], total, max }
-  const W = 600, H = 260;
-  const padL = 50, padR = 16, padT = 16, padB = 32;
+  // data: { labels: ['Ene',...], paid:[..], pending:[..], total, max }
+  const W = 600, H = 280;
+  const padL = 50, padR = 16, padT = 16, padB = 36;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
-  const n = data.values.length;
-  const gapRatio = 0.35;
+  const n = data.labels.length;
+  const gapRatio = 0.32;
   const barW = (plotW / n) * (1 - gapRatio);
   const stepX = plotW / n;
   const maxV = Math.max(1, data.max);
-  // Escala "nice": redondeamos max hacia arriba para grid
   const niceMax = niceCeil(maxV);
   const gridSteps = 4;
+
   const gridLines = [];
   const yLabels = [];
   for (let i = 0; i <= gridSteps; i++) {
@@ -243,19 +279,31 @@ function barsChart(data) {
     gridLines.push(`<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#F4F4F5" stroke-width="1" />`);
     yLabels.push(`<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(compactMoney(v))}</text>`);
   }
-  const bars = data.values.map((v, i) => {
+
+  const bars = data.labels.map((lab, i) => {
+    const paid = data.paid[i];
+    const pending = data.pending[i];
+    const total = paid + pending;
     const x = padL + stepX * i + (stepX - barW) / 2;
-    const h = (v / niceMax) * plotH;
-    const y = padT + plotH - h;
-    const isZero = v === 0;
+    const paidH = total > 0 ? (paid / niceMax) * plotH : 0;
+    const pendingH = total > 0 ? (pending / niceMax) * plotH : 0;
+    const yBase = padT + plotH;
+    const yPaidTop = yBase - paidH;
+    const yPendingTop = yPaidTop - pendingH;
+    const hasData = total > 0;
     return `
-      <g class="stat-bar" data-label="${escapeHTML(data.labels[i])}" data-value="${v}" style="cursor:pointer;">
-        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h, 1)}"
-              fill="${isZero ? '#E4E4E7' : '#09090B'}" rx="2" />
+      <g class="stat-bar" data-label="${escapeHTML(lab)}" data-paid="${paid}" data-pending="${pending}" data-total="${total}" style="cursor:pointer;">
+        ${hasData ? `
+          ${pending > 0 ? `<rect x="${x}" y="${yPendingTop}" width="${barW}" height="${Math.max(pendingH, 0.5)}" fill="#E4E4E7" rx="2" />` : ''}
+          ${paid > 0 ? `<rect x="${x}" y="${yPaidTop}" width="${barW}" height="${Math.max(paidH, 0.5)}" fill="#09090B" rx="2" />` : ''}
+        ` : `
+          <rect x="${x}" y="${yBase - 2}" width="${barW}" height="2" fill="#E4E4E7" rx="1" />
+        `}
         <rect class="stat-bar-hit" x="${padL + stepX * i}" y="${padT}" width="${stepX}" height="${plotH}" fill="transparent" />
       </g>
     `;
   }).join('');
+
   const xLabels = data.labels.map((lab, i) => {
     const x = padL + stepX * i + stepX / 2;
     return `<text x="${x}" y="${H - padB + 18}" text-anchor="middle" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${escapeHTML(lab)}</text>`;
@@ -264,7 +312,7 @@ function barsChart(data) {
   return `
     <div class="chart-wrap" data-chart="stats-bars">
       <div class="w-full overflow-x-auto">
-        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras: recaudación por mes" class="w-full h-auto" style="min-width: 480px;">
+        <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de barras apiladas: recaudación vs pendiente por mes" class="w-full h-auto" style="min-width: 480px;">
           ${gridLines.join('')}
           ${yLabels.join('')}
           ${bars}
@@ -277,16 +325,14 @@ function barsChart(data) {
 }
 
 function linesChart(data) {
-  // data: { labels: ['Ene',...], values: [0..100,...], avg, max }
-  const W = 600, H = 260;
-  const padL = 40, padR = 16, padT = 16, padB = 32;
+  const W = 600, H = 280;
+  const padL = 44, padR = 16, padT = 16, padB = 36;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const n = data.values.length;
   const stepX = plotW / (n - 1 || 1);
   const minV = 0, maxV = 100;
 
-  // Grid horizontal (0, 25, 50, 75, 100)
   const gridSteps = 4;
   const gridLines = [];
   const yLabels = [];
@@ -297,14 +343,12 @@ function linesChart(data) {
     yLabels.push(`<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif">${v}%</text>`);
   }
 
-  // Puntos y línea
   const points = data.values.map((v, i) => {
     const x = padL + stepX * i;
     const y = padT + plotH - (v / maxV) * plotH;
-    return { x, y, v, lab: data.labels[i] };
+    return { x, y, v, lab: data.labels[i], total: data.totals[i] };
   });
 
-  // Línea promedio (referencia)
   const avg = data.avg;
   const avgY = padT + plotH - (avg / maxV) * plotH;
   const avgLine = `
@@ -313,21 +357,18 @@ function linesChart(data) {
     <text x="${W - padR - 4}" y="${avgY - 4}" text-anchor="end" font-size="10" fill="#71717A" font-family="Inter, sans-serif">Promedio ${avg}%</text>
   `;
 
-  // Polyline
+  // Polyline + área sombreada
+  const baselineY = padT + plotH;
+  const areaPath = `M ${padL},${baselineY} ` + points.map((p) => `L ${p.x},${p.y}`).join(' ') + ` L ${padL + stepX * (n - 1)},${baselineY} Z`;
   const polyline = points.map((p) => `${p.x},${p.y}`).join(' ');
-  const linePath = `
-    <polyline points="${polyline}" fill="none" stroke="#09090B" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
-  `;
 
-  // Puntos
   const dots = points.map((p) => `
-    <g class="stat-dot" data-label="${escapeHTML(p.lab)}" data-value="${p.v}" style="cursor:pointer;">
+    <g class="stat-dot" data-label="${escapeHTML(p.lab)}" data-value="${p.v}" data-total="${p.total}" style="cursor:pointer;">
       <circle cx="${p.x}" cy="${p.y}" r="14" fill="transparent" />
-      <circle cx="${p.x}" cy="${p.y}" r="3" fill="white" stroke="#09090B" stroke-width="1.5" />
+      <circle cx="${p.x}" cy="${p.y}" r="3.5" fill="white" stroke="#09090B" stroke-width="1.75" />
     </g>
   `).join('');
 
-  // Si no hay datos válidos (todos 0), mensaje sutil
   const allZero = data.values.every((v) => v === 0);
   const emptyMsg = allZero
     ? `<text x="${W / 2}" y="${padT + plotH / 2 + 4}" text-anchor="middle" font-size="11" fill="#A1A1AA" font-family="Inter, sans-serif">Sin pagos en ${_filter.year}</text>`
@@ -342,14 +383,101 @@ function linesChart(data) {
     <div class="chart-wrap" data-chart="stats-lines">
       <div class="w-full overflow-x-auto">
         <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de líneas: porcentaje cobrado por mes" class="w-full h-auto" style="min-width: 480px;">
+          <defs>
+            <linearGradient id="lineAreaFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#09090B" stop-opacity="0.18"/>
+              <stop offset="100%" stop-color="#09090B" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
           ${gridLines.join('')}
           ${yLabels.join('')}
-          ${linePath}
+          <path d="${areaPath}" fill="url(#lineAreaFill)" />
+          <polyline points="${polyline}" fill="none" stroke="#09090B" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round" />
           ${avgLine}
           ${dots}
           ${emptyMsg}
           ${xLabels}
         </svg>
+      </div>
+      <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
+    </div>
+  `;
+}
+
+// Paleta consistente con la asignación de avatar por categoría
+const CATEGORY_PALETTE = [
+  '#F26B1F', '#27272A', '#1E3A5F', '#7C3AED', '#10B981',
+  '#0EA5E9', '#EAB308', '#EC4899', '#84CC16', '#F43F5E',
+];
+
+function pickCategoryColor(name, usedSet) {
+  // Mismo criterio estable que avatarGradient (orden alfabético)
+  const cats = state.categories.map((c) => c.name).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  const baseIdx = Math.max(0, cats.indexOf(name)) % CATEGORY_PALETTE.length;
+  if (!usedSet.has(baseIdx)) return CATEGORY_PALETTE[baseIdx];
+  for (let i = 1; i < CATEGORY_PALETTE.length; i++) {
+    const cand = (baseIdx + i) % CATEGORY_PALETTE.length;
+    if (!usedSet.has(cand)) return CATEGORY_PALETTE[cand];
+  }
+  return CATEGORY_PALETTE[baseIdx];
+}
+
+function donutChart(donut) {
+  const size = 220;
+  const cx = size / 2, cy = size / 2;
+  const r  = 90;
+  const stroke = 22;
+  const C = 2 * Math.PI * r;
+
+  if (donut.total === 0) {
+    return `<p class="text-sm text-zinc-500 py-6 text-center">Sin datos para graficar.</p>`;
+  }
+
+  let offset = 0;
+  const segments = donut.segments.map((s) => {
+    const frac = s.paid / donut.total;
+    const dash = frac * C;
+    const gap  = C - dash;
+    const path = `
+      <circle class="donut-seg" cx="${cx}" cy="${cy}" r="${r}"
+              fill="none" stroke="${escapeHTML(s.color)}" stroke-width="${stroke}"
+              stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-offset}"
+              transform="rotate(-90 ${cx} ${cy})"
+              data-name="${escapeHTML(s.name)}" data-paid="${s.paid}" data-pending="${s.pending}" data-total="${s.total}" data-pct="${s.pct}"
+              style="cursor:pointer; transition: opacity 120ms;" />
+    `;
+    offset += dash;
+    return path;
+  }).join('');
+
+  // Center label: total recaudado + % global
+  const centerHTML = `
+    <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="11" fill="#71717A" font-family="Inter, sans-serif">Recaudado</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="20" font-weight="700" fill="#09090B" font-family="Inter, sans-serif" class="tabular-nums">${escapeHTML(formatMXN(donut.recaudado))}</text>
+    <text x="${cx}" y="${cy + 32}" text-anchor="middle" font-size="10.5" fill="#71717A" font-family="Inter, sans-serif" class="tabular-nums">${donut.totalCategorias} categoría${donut.totalCategorias === 1 ? '' : 's'}</text>
+  `;
+
+  // Leyenda
+  const legend = donut.segments.map((s) => `
+    <li class="flex items-center justify-between gap-3 py-1.5 border-b border-zinc-100 last:border-0">
+      <span class="flex items-center gap-2 min-w-0">
+        <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style="background:${escapeHTML(s.color)}"></span>
+        <span class="text-sm text-zinc-700 truncate">${escapeHTML(s.name)}</span>
+      </span>
+      <span class="text-xs text-zinc-500 tabular-nums shrink-0">${s.sharePct}%</span>
+    </li>
+  `).join('');
+
+  return `
+    <div class="chart-wrap" data-chart="stats-donut">
+      <div class="flex flex-col items-center gap-3">
+        <svg viewBox="0 0 ${size} ${size}" role="img" aria-label="Distribución de cobranza por categoría" class="w-full max-w-[240px]">
+          <!-- Track -->
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F4F4F5" stroke-width="${stroke}" />
+          ${segments}
+          ${centerHTML}
+        </svg>
+        <ul class="w-full self-stretch">${legend}</ul>
       </div>
       <div class="chart-tooltip" role="tooltip" aria-hidden="true"></div>
     </div>
@@ -363,34 +491,78 @@ function wireStatsTooltip(root) {
     const tip = wrap.querySelector('.chart-tooltip');
     if (!tip) return;
     const chartKind = wrap.dataset.chart;
-    wrap.querySelectorAll('[data-label]').forEach((node) => {
-      node.addEventListener('mouseenter', (e) => {
-        const label = node.dataset.label;
-        const value = node.dataset.value;
-        if (chartKind === 'stats-bars') {
+
+    if (chartKind === 'stats-bars') {
+      wrap.querySelectorAll('[data-label]').forEach((node) => {
+        node.addEventListener('mouseenter', () => {
+          const label = node.dataset.label;
+          const paid = Number(node.dataset.paid);
+          const pending = Number(node.dataset.pending);
+          const total = Number(node.dataset.total);
+          const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
           tip.innerHTML = `
             <p class="tt-title">${escapeHTML(label)}</p>
             <div class="tt-rows">
-              <div class="tt-row tt-row--accent"><span class="tt-label">Recaudado</span><span class="tt-val tabular-nums">${escapeHTML(formatMXN(Number(value)))}</span></div>
+              <div class="tt-row"><span class="tt-label">Recaudado</span><span class="tt-val tabular-nums">${escapeHTML(formatMXN(paid))}</span></div>
+              <div class="tt-row"><span class="tt-label">Pendiente</span><span class="tt-val tabular-nums text-zinc-500">${escapeHTML(formatMXN(pending))}</span></div>
+              <div class="tt-row tt-row--accent"><span class="tt-label">% Cobrado</span><span class="tt-val tabular-nums">${pct}%</span></div>
             </div>
           `;
-        } else {
+          tip.classList.add('is-visible');
+        });
+        node.addEventListener('mousemove', (e) => positionTooltip(e, wrap, tip));
+        node.addEventListener('mouseleave', () => tip.classList.remove('is-visible'));
+      });
+    }
+
+    if (chartKind === 'stats-lines') {
+      wrap.querySelectorAll('[data-label]').forEach((node) => {
+        node.addEventListener('mouseenter', () => {
+          const label = node.dataset.label;
+          const value = node.dataset.value;
+          const total = Number(node.dataset.total);
           tip.innerHTML = `
             <p class="tt-title">${escapeHTML(label)}</p>
             <div class="tt-rows">
               <div class="tt-row tt-row--accent"><span class="tt-label">% Cobrado</span><span class="tt-val tabular-nums">${value}%</span></div>
+              <div class="tt-row"><span class="tt-label">Pagos</span><span class="tt-val tabular-nums text-zinc-500">${escapeHTML(formatMXN(total))}</span></div>
             </div>
           `;
-        }
-        tip.classList.add('is-visible');
+          tip.classList.add('is-visible');
+        });
+        node.addEventListener('mousemove', (e) => positionTooltip(e, wrap, tip));
+        node.addEventListener('mouseleave', () => tip.classList.remove('is-visible'));
       });
-      node.addEventListener('mousemove', (e) => {
-        positionTooltip(e, wrap, tip);
+    }
+
+    if (chartKind === 'stats-donut') {
+      const segs = wrap.querySelectorAll('.donut-seg');
+      segs.forEach((node) => {
+        node.addEventListener('mouseenter', () => {
+          const name = node.dataset.name;
+          const paid = Number(node.dataset.paid);
+          const pending = Number(node.dataset.pending);
+          const total = Number(node.dataset.total);
+          const pct = Number(node.dataset.pct);
+          tip.innerHTML = `
+            <p class="tt-title">${escapeHTML(name)}</p>
+            <div class="tt-rows">
+              <div class="tt-row"><span class="tt-label">Recaudado</span><span class="tt-val tabular-nums">${escapeHTML(formatMXN(paid))}</span></div>
+              <div class="tt-row"><span class="tt-label">Pendiente</span><span class="tt-val tabular-nums text-zinc-500">${escapeHTML(formatMXN(pending))}</span></div>
+              <div class="tt-row"><span class="tt-label">Total</span><span class="tt-val tabular-nums text-zinc-500">${escapeHTML(formatMXN(total))}</span></div>
+              <div class="tt-row tt-row--accent"><span class="tt-label">% Cobrado</span><span class="tt-val tabular-nums">${pct}%</span></div>
+            </div>
+          `;
+          tip.classList.add('is-visible');
+          segs.forEach((s) => { if (s !== node) s.style.opacity = '0.45'; });
+        });
+        node.addEventListener('mousemove', (e) => positionTooltip(e, wrap, tip));
+        node.addEventListener('mouseleave', () => {
+          tip.classList.remove('is-visible');
+          segs.forEach((s) => { s.style.opacity = '1'; });
+        });
       });
-      node.addEventListener('mouseleave', () => {
-        tip.classList.remove('is-visible');
-      });
-    });
+    }
   });
 }
 
@@ -447,42 +619,45 @@ function computePrevious(f) {
 }
 
 function monthAggregate(year) {
-  // Devuelve array de 12 meses con { paid, total, pct }
   return Array.from({ length: 12 }, (_, i) => {
     const month = i + 1;
     const pays = state.payments.filter((p) =>
       Number(p.year) === year && Number(p.month) === month
     );
     const paid = pays.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
-    const total = pays.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const pending = pays.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount || 0), 0);
+    const total = paid + pending;
     const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
-    return { month, paid, total, pct };
+    return { month, paid, pending, total, pct };
   });
 }
 
 function computeBarData(f) {
   const months = monthAggregate(f.year);
   const labels = months.map((m) => monthShort(m.month - 1));
-  const values = months.map((m) => m.paid);
-  const total = values.reduce((s, v) => s + v, 0);
-  const max = Math.max(...values, 0);
-  return { labels, values, total, max };
+  const paid = months.map((m) => m.paid);
+  const pending = months.map((m) => m.pending);
+  const total = months.reduce((s, m) => s + m.paid, 0);
+  const max = Math.max(...paid.map((v, i) => v + pending[i]), 0);
+  return { labels, paid, pending, total, max };
 }
 
 function computeLineData(f) {
   const months = monthAggregate(f.year);
   const labels = months.map((m) => monthShort(m.month - 1));
   const values = months.map((m) => m.pct);
-  const withData = values.filter((v) => v > 0 || months[values.indexOf(v)].total > 0);
+  const totals = months.map((m) => m.total);
+  const withData = months.filter((m) => m.total > 0).map((m) => m.pct);
   const avg = withData.length > 0
     ? Math.round(withData.reduce((s, v) => s + v, 0) / withData.length)
     : 0;
-  return { labels, values, avg, max: 100 };
+  return { labels, values, totals, avg, max: 100 };
 }
 
 function computeByCategory(f) {
   const pays = filterPayments(f);
   const cats = state.categories;
+  const used = new Set();
   return cats.map((c) => {
     const inCat = state.players.filter((p) => p.category === c.name).map((p) => p.id);
     const inSet = new Set(inCat);
@@ -491,8 +666,32 @@ function computeByCategory(f) {
     const pending = relevant.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount || 0), 0);
     const total = paid + pending;
     const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
-    return { name: c.name, paid, pending, total, pct };
+    const color = pickCategoryColor(c.name, used);
+    used.add(CATEGORY_PALETTE.indexOf(color));
+    return { name: c.name, paid, pending, total, pct, color };
   }).filter((c) => c.total > 0);
+}
+
+function computeCategoryShare(byCategory, stats) {
+  if (byCategory.length === 0) {
+    return { segments: [], total: 0, recaudado: 0, totalCategorias: 0 };
+  }
+  const total = byCategory.reduce((s, c) => s + c.paid, 0);
+  const segments = byCategory.map((c) => ({
+    name: c.name,
+    paid: c.paid,
+    pending: c.pending,
+    total: c.total,
+    pct: c.pct,
+    color: c.color,
+    sharePct: total > 0 ? Math.round((c.paid / total) * 100) : 0,
+  }));
+  return {
+    segments,
+    total,
+    recaudado: total,
+    totalCategorias: byCategory.length,
+  };
 }
 
 function deltaPct(current, previous) {
