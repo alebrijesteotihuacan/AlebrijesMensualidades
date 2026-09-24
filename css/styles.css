@@ -1608,6 +1608,132 @@ input[type="search"]::-webkit-search-decoration {
 }
 
 /* ============================================
+   DISTRIBUCIÓN DE JUGADORES (hero card del dashboard)
+   Números grandes + barra gruesa + leyenda limpia.
+   El grid se extiende con margen negativo para que los
+   divisores lleguen al borde del padding de la card.
+   ============================================ */
+.distro-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .distro-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.distro-block {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-top: 1px solid #F4F4F5;
+}
+.distro-block:first-child { border-top: 0; }
+@media (min-width: 640px) {
+  .distro-block {
+    padding: 1.5rem 1.75rem;
+    border-top: 0;
+  }
+  .distro-block + .distro-block::before {
+    content: "";
+    position: absolute;
+    top: 1.75rem;
+    bottom: 1.75rem;
+    left: 0;
+    width: 1px;
+    background: #F4F4F5;
+  }
+}
+.distro-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 1.1rem;
+}
+.distro-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #52525B;
+  line-height: 1;
+}
+.distro-number {
+  font-size: 3.25rem;
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  color: #09090B;
+}
+@media (min-width: 640px) {
+  .distro-number { font-size: 4rem; }
+}
+@media (min-width: 1024px) {
+  .distro-number { font-size: 4.25rem; }
+}
+.distro-block .distro-number { color: inherit; }
+.distro-block--success .distro-number { color: #047857; }
+.distro-block--danger  .distro-number { color: #B91C1C; }
+.distro-block--warning .distro-number { color: #B45309; }
+.distro-sub {
+  margin-top: 0.7rem;
+  font-size: 0.78rem;
+  color: #71717A;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+/* Barra segmentada — más gruesa y con leve padding interno */
+.distro-bar {
+  display: flex;
+  height: 12px;
+  background: #F4F4F5;
+  border-radius: 9999px;
+  overflow: hidden;
+  padding: 2px;
+  gap: 2px;
+}
+.distro-bar-seg {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 320ms ease-out;
+  min-width: 3px;
+}
+
+.distro-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-top: 1rem;
+  font-size: 0.78rem;
+  color: #52525B;
+}
+.distro-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+.distro-legend-swatch {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.distro-legend-count {
+  font-weight: 600;
+  color: #09090B;
+  font-variant-numeric: tabular-nums;
+  margin-right: 3px;
+}
+
+/* ============================================
    STATS (dashboard inline, sin cards pesadas)
    ============================================ */
 .stat-block {

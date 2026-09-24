@@ -100,52 +100,61 @@ export function renderDashboard(root) {
 
       <!-- ESTADO DEL MES + ATENCIÓN PRIORITARIA -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="card card-pad">
-          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 mb-5">
+        <div class="card p-6 sm:p-8">
+          <div class="flex items-end justify-between gap-4 mb-8 sm:mb-10">
             <div>
               <p class="section-eyebrow">Estado del mes</p>
-              <h2 class="text-base font-semibold mt-1">Distribución de jugadores</h2>
+              <h2 class="text-lg sm:text-xl font-semibold mt-1.5 tracking-tight">Distribución de jugadores</h2>
             </div>
-            <span class="text-xs text-zinc-500 tabular-nums">${escapeHTML(monthYearLabel(current.year, current.month))}</span>
+            <p class="text-xs text-zinc-500 tabular-nums whitespace-nowrap pb-1">${escapeHTML(monthYearLabel(current.year, current.month))}</p>
           </div>
 
           <!-- 3 stat blocks: Al día / Vencidos / Próximos -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100 -mx-2">
+          <div class="distro-grid -mx-6 sm:-mx-8">
             ${distroStat({
               label: 'Al día',
               value: stats.currentAlDia,
-              hint: '',
+              sub: distroHelper({ count: stats.currentAlDia, kind: 'success' }),
               tone: 'success',
             })}
             ${distroStat({
               label: 'Vencidos',
               value: stats.currentMorosos,
-              hint: formatMXN(stats.totalAdeudo),
+              sub: distroHelper({ count: stats.currentMorosos, kind: 'danger' }),
               tone: 'danger',
             })}
             ${distroStat({
               label: 'Próximos',
               value: stats.currentPending,
-              hint: formatMXN(stats.upcomingVirtualAmount),
+              sub: distroHelper({ count: stats.currentPending, kind: 'warning' }),
               tone: 'warning',
             })}
           </div>
 
           <!-- Barra segmentada -->
           ${stats.expectedPlayers > 0 ? `
-            <div class="mt-6">
-              <div class="h-2 rounded-full overflow-hidden flex bg-zinc-100">
-                <div class="bg-emerald-500 transition-all" style="width:${(stats.currentAlDia / stats.expectedPlayers) * 100}%"></div>
-                <div class="bg-red-500 transition-all"     style="width:${(stats.currentMorosos / stats.expectedPlayers) * 100}%"></div>
-                <div class="bg-amber-400 transition-all"   style="width:${(stats.currentPending / stats.expectedPlayers) * 100}%"></div>
+            <div class="mt-10 pt-7 border-t border-zinc-100">
+              <div class="distro-bar">
+                <div class="distro-bar-seg bg-emerald-500" style="width:${(stats.currentAlDia / stats.expectedPlayers) * 100}%"></div>
+                <div class="distro-bar-seg bg-red-500"     style="width:${(stats.currentMorosos / stats.expectedPlayers) * 100}%"></div>
+                <div class="distro-bar-seg bg-amber-400"   style="width:${(stats.currentPending / stats.expectedPlayers) * 100}%"></div>
               </div>
-              <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 mt-2.5 text-[11px] text-zinc-500 tabular-nums">
-                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2 h-2 rounded-sm bg-emerald-500"></span>${stats.currentAlDia} al día</span>
-                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2 h-2 rounded-sm bg-red-500"></span>${stats.currentMorosos} vencidos</span>
-                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2 h-2 rounded-sm bg-amber-400"></span>${stats.currentPending} próximos</span>
+              <div class="distro-legend">
+                <span class="distro-legend-item">
+                  <span class="distro-legend-swatch bg-emerald-500"></span>
+                  <span><span class="distro-legend-count">${stats.currentAlDia}</span> al día</span>
+                </span>
+                <span class="distro-legend-item">
+                  <span class="distro-legend-swatch bg-red-500"></span>
+                  <span><span class="distro-legend-count">${stats.currentMorosos}</span> vencido${stats.currentMorosos === 1 ? '' : 's'}</span>
+                </span>
+                <span class="distro-legend-item">
+                  <span class="distro-legend-swatch bg-amber-400"></span>
+                  <span><span class="distro-legend-count">${stats.currentPending}</span> próximo${stats.currentPending === 1 ? '' : 's'}</span>
+                </span>
               </div>
             </div>
-          ` : `<p class="text-sm text-zinc-500 py-4 text-center mt-4">Sin jugadores activos.</p>`}
+          ` : `<p class="text-sm text-zinc-500 py-4 text-center mt-10 border-t border-zinc-100 pt-7">Sin jugadores activos.</p>`}
         </div>
 
         <div class="card card-pad">
@@ -299,25 +308,35 @@ function kpiBlock({ label, value, sub, tone = 'neutral', bigValue }) {
   `;
 }
 
-// distroStat: bloque inline para mostrar un conteo + hint dentro de la card
-// "Distribución de jugadores". Tres instancias se renderizan en grid 1x3.
-function distroStat({ label, value, hint, tone }) {
+// distroStat: bloque hero para la card "Distribución de jugadores".
+// El número grande es el protagonista (text-5xl → text-6xl).
+// Encabezado label+dot arriba, helper contextual abajo — se eliminó el
+// monto en dinero y el "% del total" porque la barra segmentada ya
+// muestra la proporción; el helper describe el estado, no la métrica.
+function distroStat({ label, value, sub, tone }) {
   const dotClass = tone === 'success' ? 'dot-success'
                  : tone === 'warning' ? 'dot-warning'
                  :                       'dot-danger';
-  const valueClass = tone === 'success' ? 'text-emerald-700'
-                   : tone === 'warning' ? 'text-amber-700'
-                   :                       'text-red-700';
   return `
-    <div class="px-2 py-3 first:pt-0 sm:first:pt-1 sm:py-1 last:pb-0 sm:last:pb-1">
-      <div class="flex items-center gap-1.5">
+    <div class="distro-block">
+      <div class="distro-head">
         <span class="status-dot ${dotClass}"></span>
-        <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">${escapeHTML(label)}</p>
+        <span class="distro-label">${escapeHTML(label)}</span>
       </div>
-      <p class="text-2xl font-semibold tabular-nums mt-2 ${valueClass}">${value}</p>
-      <p class="text-xs text-zinc-500 mt-1 tabular-nums">${escapeHTML(hint)}</p>
+      <p class="distro-number">${value}</p>
+      ${sub ? `<p class="distro-sub">${escapeHTML(sub)}</p>` : ''}
     </div>
   `;
+}
+
+// distroHelper: genera una línea contextual por bloque según el conteo.
+// Evita mostrar "% del total" (la barra ya expresa la proporción) y
+// tampoco muestra dinero — el foco es cuántos jugadores están en cada estado.
+function distroHelper({ count, kind }) {
+  if (kind === 'success') return count === 0 ? 'Sin jugadores al día' : 'Sin adeudos este mes';
+  if (kind === 'danger')  return count === 0 ? 'Sin adeudos vencidos' : count === 1 ? 'Necesita seguimiento' : 'Necesitan seguimiento';
+  if (kind === 'warning') return count === 0 ? 'Sin pendientes próximos' : count === 1 ? 'Por vencer pronto' : 'Por vencer pronto';
+  return '';
 }
 
 function categoryBarsChart(cats) {
