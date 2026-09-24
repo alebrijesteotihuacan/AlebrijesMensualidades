@@ -349,7 +349,7 @@ function playerCard(p) {
 function statusInline(p) {
   if (p.exempt) return `<span class="status"><span class="status-dot dot-neutral"></span><span>Becado</span></span>`;
   if (p.status === 'paid')    return `<span class="status"><span class="status-dot dot-success"></span><span>Al día</span></span>`;
-  if (p.status === 'pending') return `<span class="status"><span class="status-dot dot-warning"></span><span>Pendiente hoy</span></span>`;
+  if (p.status === 'pending') return `<span class="status"><span class="status-dot dot-warning"></span><span>Pendiente</span></span>`;
   // Adeudo: el texto "No podrá entrenar" SOLO aparece cuando el jugador
   // ya no puede entrenar (>= 5 días de atraso). Para 1-4 días se muestra
   // una etiqueta más neutra ("Adeudo") con los días.

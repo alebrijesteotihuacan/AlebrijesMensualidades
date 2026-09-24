@@ -2,9 +2,8 @@
 // Vista Dashboard minimalista: header + stats inline + categorías + morosos.
 
 import { state, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer } from '../app.js';
-import { classifyAdeudo } from '../services/adeudo.js';
-import { getAutoPendingPeriod, getAllAutoPending, classifyPlayersByStatus } from '../services/autoPending.js';
-import { formatMXN, monthYearLabel, daysOverdue } from '../utils/dates.js';
+import { getAllAutoPending, classifyPlayersByStatus } from '../services/autoPending.js';
+import { formatMXN, monthYearLabel } from '../utils/dates.js';
 
 export function renderDashboard(root) {
   const today = new Date();
@@ -26,136 +25,127 @@ export function renderDashboard(root) {
         </div>
       </div>
 
-      <!-- KPI CARDS (4 rediseñados) -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        ${kpiCard({
-          label: 'Total jugadores',
-          value: stats.totalPlayers,
-          icon: 'users',
-          tone: 'neutral',
-          sub: `${stats.exempt} exento${stats.exempt === 1 ? '' : 's'}${stats.expectedPlayers > 0 ? ` · ${stats.expectedPlayers} por pagar` : ''}`,
-        })}
-        ${kpiCard({
-          label: 'Al corriente',
-          value: stats.currentAlDia,
-          icon: 'check',
-          tone: 'success',
-          sub: stats.currentAlDia > 0
-            ? `${stats.currentPct}% sin adeudo · ${stats.currentPaid} pagaron`
-            : 'Todos en adeudo',
-          progress: { total: stats.expectedPlayers, filled: stats.currentAlDia, tone: 'success' },
-        })}
-        ${kpiCard({
-          label: 'Pendientes',
-          value: stats.currentPending,
-          icon: 'clock',
-          tone: 'warning',
-          sub: stats.currentPending > 0 ? 'Día de pago aún no vence' : 'Sin pendientes en alerta',
-          progress: { total: stats.expectedPlayers, filled: stats.currentPending, tone: 'warning' },
-        })}
-        ${kpiCard({
-          label: 'Adeudo',
-          value: stats.currentMorosos,
-          icon: 'ban',
-          tone: 'danger',
-          sub: stats.currentMorosos > 0 ? 'Día de pago vencido' : 'Sin adeudos',
-          progress: { total: stats.expectedPlayers, filled: stats.currentMorosos, tone: 'danger' },
-        })}
+      <!-- KPI DEL PERÍODO: header distintivo + 4 stats + barra de cobranza del mes -->
+      <div class="card card-pad relative">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-6">
+          <div>
+            <p class="section-eyebrow">Período actual</p>
+            <h2 class="text-2xl sm:text-3xl font-semibold tracking-tight mt-1">${escapeHTML(monthYearLabel(current.year, current.month))}</h2>
+          </div>
+          <div class="text-right sm:text-right">
+            <p class="text-[11px] uppercase tracking-wider text-zinc-500">Jugadores</p>
+            <p class="text-base font-semibold tabular-nums mt-0.5">
+              <span class="text-zinc-900">${stats.totalPlayers}</span>
+              <span class="text-zinc-400 font-normal"> en total</span>
+            </p>
+            <p class="text-[11px] text-zinc-500 tabular-nums mt-0.5">
+              ${stats.expectedPlayers} con pago · ${stats.exempt} exento${stats.exempt === 1 ? '' : 's'}
+            </p>
+          </div>
+        </div>
+        <div class="kpi-grid">
+          ${kpiBlock({
+            label: 'Recaudado',
+            value: formatMXN(stats.collectedThisPeriod),
+            sub: `${stats.currentPaid} de ${stats.expectedPlayers} pagaron este mes`,
+            tone: 'success',
+          })}
+          ${kpiBlock({
+            label: 'Pendiente',
+            value: formatMXN(stats.totalVirtualPending),
+            sub: stats.morosos > 0 || stats.upcoming > 0
+              ? `${stats.morosos} vencido${stats.morosos === 1 ? '' : 's'} · ${stats.upcoming} próximo${stats.upcoming === 1 ? '' : 's'}`
+              : 'Sin adeudos',
+            tone: stats.morosos > 0 ? 'danger' : stats.upcoming > 0 ? 'warning' : 'neutral',
+          })}
+          ${kpiBlock({
+            label: '% Cobrado',
+            value: `${stats.collectedPct}%`,
+            sub: stats.collectedPct === 100
+              ? 'Período cerrado'
+              : stats.collectedPct >= 50
+                ? 'En curso, buen ritmo'
+                : stats.collectedPct >= 25
+                  ? 'En curso, bajo ritmo'
+                  : stats.collectedPct > 0
+                    ? 'Recién empezando'
+                    : 'Sin cobros aún',
+            tone: stats.collectedPct >= 70 ? 'success' : stats.collectedPct >= 40 ? 'warning' : 'neutral',
+          })}
+          ${kpiBlock({
+            label: 'Esperado',
+            value: formatMXN(stats.expectedThisPeriod),
+            sub: `${stats.expectedPlayers} jugador${stats.expectedPlayers === 1 ? '' : 'es'} con pago este mes`,
+            tone: 'neutral',
+          })}
+        </div>
+
+        <!-- Firma visual del Dashboard: barra de cobranza del mes -->
+        ${stats.expectedThisPeriod > 0 ? `
+          <div class="mt-6 pt-5 border-t border-zinc-100">
+            <div class="flex items-baseline justify-between mb-2">
+              <span class="text-xs font-medium text-zinc-700">Cobranza del mes</span>
+              <span class="text-xs text-zinc-500 tabular-nums">
+                <strong class="text-zinc-900">${formatMXN(stats.collectedThisPeriod)}</strong>
+                de
+                <strong class="text-zinc-900">${formatMXN(stats.expectedThisPeriod)}</strong>
+              </span>
+            </div>
+            <div class="h-2 rounded-full overflow-hidden flex bg-zinc-100">
+              <div class="bg-emerald-500 transition-all" style="width:${stats.collectedPct}%"></div>
+            </div>
+          </div>
+        ` : ''}
       </div>
 
-      <!-- COBRANZA -->
+      <!-- ESTADO DEL MES + ATENCIÓN PRIORITARIA -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div class="card card-pad">
           <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 mb-5">
             <div>
-              <p class="section-eyebrow">Economía del club</p>
-              <h2 class="text-base font-semibold mt-1">Cobranza del período</h2>
+              <p class="section-eyebrow">Estado del mes</p>
+              <h2 class="text-base font-semibold mt-1">Distribución de jugadores</h2>
             </div>
             <span class="text-xs text-zinc-500 tabular-nums">${escapeHTML(monthYearLabel(current.year, current.month))}</span>
           </div>
 
-          <!-- 2 stat blocks: Recaudado / Adeudos -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100 -mx-2">
-            <div class="px-2 py-3 sm:py-1 first:pt-0 sm:first:pt-1">
-              <div class="flex items-center gap-1.5">
-                <span class="status-dot dot-success"></span>
-                <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">Recaudado</p>
-              </div>
-              <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.collectedThisPeriod)}</p>
-              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.collectedPct}% del esperado · ${stats.currentPaid} jugador${stats.currentPaid === 1 ? '' : 'es'}</p>
-            </div>
-
-            <div class="px-2 py-3 last:pb-0 sm:last:pb-1">
-              <div class="flex items-center gap-1.5">
-                <span class="status-dot dot-danger"></span>
-                <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">Adeudos</p>
-              </div>
-              <p class="text-2xl font-semibold tabular-nums mt-2">${formatMXN(stats.totalAdeudo)}</p>
-              <p class="text-xs text-zinc-500 mt-1 tabular-nums">${stats.morosos} jugador${stats.morosos === 1 ? '' : 'es'} con adeudo</p>
-            </div>
+          <!-- 3 stat blocks: Al día / Vencidos / Próximos -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-100 -mx-2">
+            ${distroStat({
+              label: 'Al día',
+              value: stats.currentAlDia,
+              hint: '',
+              tone: 'success',
+            })}
+            ${distroStat({
+              label: 'Vencidos',
+              value: stats.currentMorosos,
+              hint: formatMXN(stats.totalAdeudo),
+              tone: 'danger',
+            })}
+            ${distroStat({
+              label: 'Próximos',
+              value: stats.currentPending,
+              hint: formatMXN(stats.upcomingVirtualAmount),
+              tone: 'warning',
+            })}
           </div>
 
-          <!-- Progreso de cobranza -->
-          <div class="mt-5">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-xs font-medium text-zinc-700">Progreso de cobranza</span>
-              <span class="text-xs text-zinc-500 tabular-nums">Esperado: ${formatMXN(stats.expectedThisPeriod)}</span>
-            </div>
-            <div class="progress progress-lg">
-              <div class="bar-paid" style="width:${Math.min(100, stats.collectedPct)}%"></div>
-              <div class="bar-pending" style="width:${Math.max(0, 100 - Math.min(100, stats.collectedPct))}%"></div>
-            </div>
-          </div>
-
-          <!-- Resumen histórico -->
-          <div class="mt-6 pt-5 border-t border-zinc-100">
-            <div class="flex items-baseline justify-between mb-3">
-              <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Histórico acumulado</p>
-              <p class="text-[11px] text-zinc-400 tabular-nums">${stats.paidPaymentsCount} pagados · ${stats.pendingPaymentsCount} pendientes</p>
-            </div>
-
-            ${(stats.totalCollected + stats.totalPending) > 0 ? `
-              <div class="mb-4">
-                <div class="h-1.5 rounded-full bg-zinc-100 overflow-hidden flex">
-                  ${stats.totalCollected > 0 ? `<div class="bg-emerald-500 transition-all" style="width:${(stats.totalCollected / (stats.totalCollected + stats.totalPending)) * 100}%"></div>` : ''}
-                  ${stats.totalPending > 0 ? `<div class="bg-amber-400 transition-all" style="width:${(stats.totalPending / (stats.totalCollected + stats.totalPending)) * 100}%"></div>` : ''}
-                </div>
-                <div class="flex justify-between mt-1.5 text-[10px] text-zinc-500 tabular-nums">
-                  <span>${stats.historicalPct}% cobrado</span>
-                  <span>${100 - stats.historicalPct}% pendiente</span>
-                </div>
+          <!-- Barra segmentada -->
+          ${stats.expectedPlayers > 0 ? `
+            <div class="mt-6">
+              <div class="h-2 rounded-full overflow-hidden flex bg-zinc-100">
+                <div class="bg-emerald-500 transition-all" style="width:${(stats.currentAlDia / stats.expectedPlayers) * 100}%"></div>
+                <div class="bg-red-500 transition-all"     style="width:${(stats.currentMorosos / stats.expectedPlayers) * 100}%"></div>
+                <div class="bg-amber-400 transition-all"   style="width:${(stats.currentPending / stats.expectedPlayers) * 100}%"></div>
               </div>
-            ` : `
-              <p class="text-xs text-zinc-400 italic mb-4">Aún no hay pagos registrados en el histórico.</p>
-            `}
-
-            <div class="grid grid-cols-3 divide-x divide-zinc-100 -mx-1">
-              <div class="px-2 first:pl-1">
-                <div class="flex items-center gap-1.5 mb-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
-                  <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Esperado</p>
-                </div>
-                <p class="text-lg font-semibold tabular-nums text-zinc-900">${formatMXN(stats.expectedMonthly)}</p>
-                <p class="text-[11px] text-zinc-500 mt-0.5">Mensual</p>
-              </div>
-              <div class="px-2">
-                <div class="flex items-center gap-1.5 mb-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Recaudado</p>
-                </div>
-                <p class="text-lg font-semibold tabular-nums text-emerald-700">${formatMXN(stats.totalCollected)}</p>
-                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${stats.historicalPct}% del esperado</p>
-              </div>
-              <div class="px-2 last:pr-1">
-                <div class="flex items-center gap-1.5 mb-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Pendiente</p>
-                </div>
-                <p class="text-lg font-semibold tabular-nums text-amber-700">${formatMXN(stats.totalPending)}</p>
-                <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${100 - stats.historicalPct}% del esperado</p>
+              <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 mt-2.5 text-[11px] text-zinc-500 tabular-nums">
+                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2 h-2 rounded-sm bg-emerald-500"></span>${stats.currentAlDia} al día</span>
+                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2 h-2 rounded-sm bg-red-500"></span>${stats.currentMorosos} vencidos</span>
+                <span class="inline-flex items-center gap-1.5"><span class="inline-block w-2 h-2 rounded-sm bg-amber-400"></span>${stats.currentPending} próximos</span>
               </div>
             </div>
-          </div>
+          ` : `<p class="text-sm text-zinc-500 py-4 text-center mt-4">Sin jugadores activos.</p>`}
         </div>
 
         <div class="card card-pad">
@@ -285,40 +275,47 @@ function positionTooltip(e, wrap, tip) {
 
 // ============ COMPONENTES ============ //
 
-const KPI_ICON = {
-  users:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
-  check:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>',
-  clock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
-  ban:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
-};
-
-const KPI_TONE = {
-  neutral: { icon: '#52525B', bar: '#E4E4E7' },
-  success: { icon: '#10B981', bar: '#10B981' },
-  warning: { icon: '#F59E0B', bar: '#F59E0B' },
-  danger:  { icon: '#EF4444', bar: '#EF4444' },
-};
-
-function kpiCard({ label, value, icon, tone = 'neutral', sub, progress }) {
-  const t = KPI_TONE[tone] || KPI_TONE.neutral;
-  const pct = progress && progress.total > 0
-    ? Math.min(100, Math.round((progress.filled / progress.total) * 100))
-    : 0;
-  const progressHTML = progress ? `
-    <div class="kpi-progress" aria-hidden="true">
-      <div class="kpi-progress-bar" style="width: ${pct}%; background: ${t.bar};"></div>
-    </div>
-    <p class="kpi-progress-pct">${pct}%</p>
-  ` : '';
+// kpiBlock: variante del stat-block de stats.js (reusa .kpi-grid + .kpi-block + .kpi-accent).
+// Renderiza un bloque compacto con dot + label + valor + sub-texto dentro de un grid.
+function kpiBlock({ label, value, sub, tone = 'neutral', bigValue }) {
+  const dotClass = tone === 'success' ? 'dot-success'
+                 : tone === 'warning' ? 'dot-warning'
+                 : tone === 'danger'  ? 'dot-danger'
+                 :                       'dot-neutral';
+  const accentColor = tone === 'success' ? '#10B981'
+                    : tone === 'warning' ? '#F59E0B'
+                    : tone === 'danger'  ? '#EF4444'
+                    :                       '#52525B';
   return `
-    <div class="kpi-card kpi-card--${tone}">
-      <div class="kpi-head">
-        <span class="kpi-icon" style="color: ${t.icon};">${KPI_ICON[icon] || ''}</span>
-        <p class="kpi-label">${escapeHTML(label)}</p>
+    <div class="kpi-block">
+      <div class="kpi-accent" style="background: ${accentColor}"></div>
+      <div class="flex items-center gap-1.5">
+        <span class="status-dot ${dotClass}"></span>
+        <p class="stat-label">${escapeHTML(label)}</p>
       </div>
-      <p class="kpi-value tabular-nums">${value}</p>
-      <p class="kpi-sub">${escapeHTML(sub)}</p>
-      ${progressHTML}
+      <p class="stat-value ${bigValue ? 'text-3xl sm:text-4xl' : ''} mt-1">${value}</p>
+      <p class="stat-sub">${escapeHTML(sub)}</p>
+    </div>
+  `;
+}
+
+// distroStat: bloque inline para mostrar un conteo + hint dentro de la card
+// "Distribución de jugadores". Tres instancias se renderizan en grid 1x3.
+function distroStat({ label, value, hint, tone }) {
+  const dotClass = tone === 'success' ? 'dot-success'
+                 : tone === 'warning' ? 'dot-warning'
+                 :                       'dot-danger';
+  const valueClass = tone === 'success' ? 'text-emerald-700'
+                   : tone === 'warning' ? 'text-amber-700'
+                   :                       'text-red-700';
+  return `
+    <div class="px-2 py-3 first:pt-0 sm:first:pt-1 sm:py-1 last:pb-0 sm:last:pb-1">
+      <div class="flex items-center gap-1.5">
+        <span class="status-dot ${dotClass}"></span>
+        <p class="text-[11px] font-medium text-zinc-600 uppercase tracking-wider">${escapeHTML(label)}</p>
+      </div>
+      <p class="text-2xl font-semibold tabular-nums mt-2 ${valueClass}">${value}</p>
+      <p class="text-xs text-zinc-500 mt-1 tabular-nums">${escapeHTML(hint)}</p>
     </div>
   `;
 }
@@ -563,19 +560,45 @@ function computeStats(current) {
     ? Math.round((collectedThisPeriod / expectedThisPeriod) * 100)
     : 0;
 
-  // Adeudos: suma de mensualidad de jugadores con ADEUDO ACTIVO (independiente de si hay pago registrado)
-  const totalAdeudo = players
-    .filter((p) => classifyAdeudo(p) !== 'recordatorio')
-    .reduce((s, p) => s + amountForPlayer(p), 0);
+  // Pendiente del período: lo que aún falta por cobrar este mes (virtuales + reales)
+  const pendingThisPeriod = Math.max(0, expectedThisPeriod - collectedThisPeriod);
 
-  // Histórico
+  // Adeudo real: solo jugadores con día de pago vencido Y SIN pago registrado este mes.
+  // Antes se usaba classifyAdeudo (que cuenta días desde paymentDay) sin checar pagos,
+  // así que un jugador que pagó el día 15 seguía apareciendo como adeudo el día 22.
+  // Se reutiliza getAllAutoPending que ya aplica esta lógica correctamente.
+  const overdueAutoPending = getAllAutoPending(players, payments, today, amountForPlayer)
+    .filter((ap) => ap.year === current.year && ap.month === current.month && ap.isOverdue);
+  const totalAdeudo = overdueAutoPending.reduce((s, ap) => s + Number(ap.amount || 0), 0);
+  const morososCount = overdueAutoPending.length;
+
+  // Pendientes virtuales (alerta pasada pero día de pago aún no vence)
+  const upcomingAutoPending = getAllAutoPending(players, payments, today, amountForPlayer)
+    .filter((ap) => ap.year === current.year && ap.month === current.month && !ap.isOverdue);
+  const upcomingVirtualCount = upcomingAutoPending.length;
+  const upcomingVirtualAmount = upcomingAutoPending.reduce((s, ap) => s + Number(ap.amount || 0), 0);
+
+  // Pagos del mes con mal fechado (diagnóstico): pagos 'paid' de jugadores que
+  // ya tenían un auto-pendiente para el mes actual (sugiere captura con month/year
+  // equivocados, p.ej. mes=8 cuando debería ser 9).
+  const mismatchedMonthPayments = currentMonthPayments
+    .filter((p) => p.status === 'paid')
+    .filter((p) => {
+      const pid = p.playerId;
+      const ap = overdueAutoPending.find((x) => x.playerId === pid);
+      return ap; // pago 'paid' del mes actual + sigue marcado como overdue
+    });
+  if (mismatchedMonthPayments.length > 0 && typeof console !== 'undefined') {
+    console.debug('[Dashboard] Pagos del mes actual pero el jugador sigue como moroso. Revisar month/year:', mismatchedMonthPayments);
+  }
+
+  // Histórico (sigue calculándose; lo usa la vista Estadísticas)
   const totalCollected = payments.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.amount || 0), 0);
   const expectedMonthly = players.filter((p) => !p.exempt).reduce((s, p) => s + amountForPlayer(p), 0);
-  // Pendiente = Esperado − Recaudado (lo que falta por cobrar del mes actual)
+  // Pendiente histórico = Esperado − Recaudado
   const totalPending = Math.max(0, expectedMonthly - totalCollected);
   const paidPaymentsCount    = payments.filter((p) => p.status === 'paid').length;
   const pendingPaymentsCount = payments.filter((p) => p.status === 'pending').length;
-  // % cobrado del esperado mensual
   const historicalPct = expectedMonthly > 0
     ? Math.round((totalCollected / expectedMonthly) * 100)
     : 0;
@@ -590,15 +613,21 @@ function computeStats(current) {
     currentNoAlert,
     currentAlDia,
     currentPct,
-    morosos: currentMorosos,
+    morosos: morososCount,
     upcoming,
     adeudosList,
     adeudosVencidos,
     adeudosProximos,
     collectedThisPeriod,
     expectedThisPeriod,
+    pendingThisPeriod,
     collectedPct,
     totalAdeudo,
+    totalVirtualPending: overdueAutoPending.reduce((s, ap) => s + Number(ap.amount || 0), 0)
+                        + upcomingVirtualAmount,
+    expectedAvgMensual: expectedPlayers > 0 ? Math.round(expectedThisPeriod / expectedPlayers) : 0,
+    upcomingVirtualCount,
+    upcomingVirtualAmount,
     totalCollected,
     totalPending,
     expectedMonthly,

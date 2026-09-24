@@ -22,12 +22,13 @@ export function renderStats(root) {
 }
 
 function paint(root) {
-  const stats     = computeStats(_filter);
-  const prev      = computePrevious(_filter);
-  const bars      = computeBarData(_filter);
-  const lines     = computeLineData(_filter);
+  const stats      = computeStats(_filter);
+  const prev       = computePrevious(_filter);
+  const bars       = computeBarData(_filter);
+  const lines      = computeLineData(_filter);
   const byCategory = computeByCategory(_filter);
-  const donut     = computeCategoryShare(byCategory);
+  const donut      = computeCategoryShare(byCategory);
+  const historical = computeHistorical();
 
   const today = new Date();
   const currentMonthIdx = (_filter.year === today.getFullYear()) ? today.getMonth() : -1;
@@ -184,6 +185,9 @@ function paint(root) {
             </div>`
         }
       </div>
+
+      <!-- HISTÓRICO ACUMULADO (movido desde Dashboard) -->
+      ${historicalCard(historical)}
     </section>
   `;
 
@@ -821,6 +825,94 @@ function periodLabel(f) {
   const y = f.year;
   if (f.month === 'all') return `Todo ${y}`;
   return `${monthName(Number(f.month) - 1)} ${y}`;
+}
+
+// ============ HISTÓRICO ACUMULADO ============ //
+
+/**
+ * Histórico acumulado: total cobrado vs total esperado (suma de mensualidades
+ * de jugadores no exentos). Es independiente del período seleccionado.
+ */
+function computeHistorical() {
+  const totalCollected = state.payments
+    .filter((p) => p.status === 'paid')
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const expectedMonthly = state.players
+    .filter((p) => !p.exempt)
+    .reduce((s, p) => s + amountForPlayer(p), 0);
+  const paidCount    = state.payments.filter((p) => p.status === 'paid').length;
+  const pendingCount = state.payments.filter((p) => p.status === 'pending').length;
+  const totalAmount = totalCollected + Math.max(0, expectedMonthly - totalCollected);
+  const pct = expectedMonthly > 0
+    ? Math.round((totalCollected / expectedMonthly) * 100)
+    : 0;
+  return {
+    totalCollected,
+    expectedMonthly,
+    totalPending: Math.max(0, expectedMonthly - totalCollected),
+    pct,
+    paidCount,
+    pendingCount,
+    hasData: totalAmount > 0,
+  };
+}
+
+function historicalCard(h) {
+  const collectedPct = h.pct;
+  const pendingPct = 100 - h.pct;
+  return `
+    <div class="card card-pad">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <p class="section-eyebrow">Acumulado</p>
+          <h2 class="text-base font-semibold mt-1">Histórico</h2>
+        </div>
+        <span class="text-[11px] text-zinc-500 tabular-nums">${h.paidCount} pagado${h.paidCount === 1 ? '' : 's'} · ${h.pendingCount} pendiente${h.pendingCount === 1 ? '' : 's'}</span>
+      </div>
+
+      ${h.hasData ? `
+        <div class="mb-5">
+          <div class="h-1.5 rounded-full bg-zinc-100 overflow-hidden flex">
+            <div class="bg-emerald-500 transition-all" style="width:${collectedPct}%"></div>
+            <div class="bg-amber-400 transition-all" style="width:${pendingPct}%"></div>
+          </div>
+          <div class="flex justify-between mt-1.5 text-[10.5px] text-zinc-500 tabular-nums">
+            <span>${collectedPct}% cobrado</span>
+            <span>${pendingPct}% pendiente</span>
+          </div>
+        </div>
+      ` : `
+        <p class="text-xs text-zinc-400 italic mb-4">Aún no hay pagos registrados en el histórico.</p>
+      `}
+
+      <div class="grid grid-cols-3 divide-x divide-zinc-100 -mx-1">
+        <div class="px-2 first:pl-1">
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
+            <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Esperado</p>
+          </div>
+          <p class="text-lg font-semibold tabular-nums text-zinc-900">${formatMXN(h.expectedMonthly)}</p>
+          <p class="text-[11px] text-zinc-500 mt-0.5">Mensual</p>
+        </div>
+        <div class="px-2">
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Recaudado</p>
+          </div>
+          <p class="text-lg font-semibold tabular-nums text-emerald-700">${formatMXN(h.totalCollected)}</p>
+          <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${h.pct}% del esperado</p>
+        </div>
+        <div class="px-2 last:pr-1">
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            <p class="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Pendiente</p>
+          </div>
+          <p class="text-lg font-semibold tabular-nums text-amber-700">${formatMXN(h.totalPending)}</p>
+          <p class="text-[11px] text-zinc-500 mt-0.5 tabular-nums">${100 - h.pct}% del esperado</p>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function niceCeil(n) {

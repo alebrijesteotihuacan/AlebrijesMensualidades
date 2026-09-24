@@ -119,7 +119,7 @@ export function monthShort(monthIdx) {
   return name ? name.slice(0, 3) : '';
 }
 
-/** "Agosto 2026" */
-export function monthYearLabel(year, monthIdx) {
-  return `${monthName(monthIdx)} ${year}`;
+/** "Agosto 2026". Acepta mes 1-indexado (1-12, como lo expresa la gente). */
+export function monthYearLabel(year, month) {
+  return `${monthName(Number(month) - 1)} ${year}`;
 }
