@@ -11,10 +11,12 @@
 
 import {
   collection,
+  collectionGroup,
   getDocs,
   addDoc,
   serverTimestamp,
   setDoc,
+  deleteDoc,
   doc,
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
@@ -29,16 +31,16 @@ const CATEGORIES = [
 ];
 
 const PLAYERS = [
-  { name: 'Carlos Méndez',       category: 'Alebrijes Teotihuacan (TDP)', phone: '55 1234 5678', paymentDay: 1,  notes: 'Defensa central' },
-  { name: 'Luis Hernández',      category: 'Alebrijes Teotihuacan (TDP)', phone: '55 2345 6789', paymentDay: 15, notes: '' },
-  { name: 'Diego Ramírez',       category: 'Soles Teotihuacan (TDP)',     phone: '55 3456 7890', paymentDay: 1,  notes: 'Portero titular' },
-  { name: 'Andrés Torres',       category: 'Soles Teotihuacan (TDP)',     phone: '55 4567 8901', paymentDay: 15, notes: '' },
-  { name: 'Mateo García',        category: 'Sub-18',                      phone: '55 5678 9012', paymentDay: 1,  notes: 'Capitán Sub-18' },
-  { name: 'Santiago López',      category: 'Sub-18',                      phone: '55 6789 0123', paymentDay: 15, notes: '' },
-  { name: 'Emiliano Pérez',      category: 'Sub-16',                      phone: '55 7890 1234', paymentDay: 1,  notes: '' },
-  { name: 'Daniel Flores',       category: 'Sub-16',                      phone: '55 8901 2345', paymentDay: 15, notes: 'Lesión rodilla' },
-  { name: 'Bruno Castillo',      category: 'Sub-14',                      phone: '55 9012 3456', paymentDay: 1,  notes: '' },
-  { name: 'Iker Vargas',         category: 'Sub-14',                      phone: '55 0123 4567', paymentDay: 15, notes: '' },
+  { name: 'Carlos Méndez',       category: 'Alebrijes Teotihuacan (TDP)', phone: '55 1234 5678', paymentDay: 1,  notes: ['Defensa central'] },
+  { name: 'Luis Hernández',      category: 'Alebrijes Teotihuacan (TDP)', phone: '55 2345 6789', paymentDay: 15, notes: [] },
+  { name: 'Diego Ramírez',       category: 'Soles Teotihuacan (TDP)',     phone: '55 3456 7890', paymentDay: 1,  notes: ['Portero titular'] },
+  { name: 'Andrés Torres',       category: 'Soles Teotihuacan (TDP)',     phone: '55 4567 8901', paymentDay: 15, notes: [] },
+  { name: 'Mateo García',        category: 'Sub-18',                      phone: '55 5678 9012', paymentDay: 1,  notes: ['Capitán Sub-18'] },
+  { name: 'Santiago López',      category: 'Sub-18',                      phone: '55 6789 0123', paymentDay: 15, notes: [] },
+  { name: 'Emiliano Pérez',      category: 'Sub-16',                      phone: '55 7890 1234', paymentDay: 1,  notes: [] },
+  { name: 'Daniel Flores',       category: 'Sub-16',                      phone: '55 8901 2345', paymentDay: 15, notes: ['Lesión rodilla'] },
+  { name: 'Bruno Castillo',      category: 'Sub-14',                      phone: '55 9012 3456', paymentDay: 1,  notes: [] },
+  { name: 'Iker Vargas',         category: 'Sub-14',                      phone: '55 0123 4567', paymentDay: 15, notes: [] },
 ];
 
 async function existsAny(colName) {
@@ -69,11 +71,25 @@ async function ensurePlayers() {
   }
   const created = [];
   for (const p of PLAYERS) {
+    const { notes, ...playerData } = p;
     const ref = await addDoc(collection(db, 'players'), {
-      ...p,
+      ...playerData,
+      customAmount: null,
+      exempt: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    // Sembrar notas en la subcolección players/{id}/notes/{noteId}
+    if (Array.isArray(notes) && notes.length > 0) {
+      for (const text of notes) {
+        await addDoc(collection(db, 'players', ref.id, 'notes'), {
+          text,
+          playerId: ref.id,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
     created.push({ id: ref.id, ...p });
   }
   console.log(`[seed] ${created.length} jugadores creados.`);
@@ -137,10 +153,16 @@ export async function seedDemo() {
 
 export async function resetAll() {
   // ⚠️ PELIGRO: esto BORRA todas las colecciones (solo si lo ejecutas a mano).
-  const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
   for (const colName of ['players', 'payments', 'categories']) {
     const snap = await getDocs(collection(db, colName));
     for (const d of snap.docs) await deleteDoc(doc(db, colName, d.id));
+  }
+  // Borra también las subcolecciones `notes` de todos los jugadores.
+  try {
+    const notesSnap = await getDocs(collectionGroup(db, 'notes'));
+    for (const d of notesSnap.docs) await deleteDoc(d.ref);
+  } catch (e) {
+    console.warn('[seed] No se pudieron limpiar las notas:', e);
   }
   console.log('[seed] 🗑️ Todas las colecciones vaciadas.');
 }

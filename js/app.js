@@ -1,7 +1,7 @@
 // js/app.js
 // Entry point: router + state + UI helpers (toast, modal, store).
 
-import { players, payments, categories } from './services/firestore.js';
+import { players, payments, categories, playerNotes } from './services/firestore.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderPlayers }   from './views/players.js';
 import { renderPayments }  from './views/payments.js';
@@ -13,6 +13,7 @@ export const state = {
   players: [],
   payments: [],
   categories: [],
+  notes: [],
   ready: false,
 };
 
@@ -20,6 +21,7 @@ export const state = {
 players.subscribe((data)   => { state.players = data;   onChange(); });
 payments.subscribe((data)  => { state.payments = data;  onChange(); });
 categories.subscribe((data)=> { state.categories = data; onChange(); });
+playerNotes.subscribeAll((data) => { state.notes = data; onChange(); });
 
 let renderToken = 0;
 function onChange() {
@@ -290,6 +292,27 @@ export function amountForPlayer(player) {
   }
   const cat = findCategoryByName(player?.category);
   return Number(cat?.amount ?? 0);
+}
+
+/**
+ * Devuelve las notas de un jugador ordenadas de más reciente a más antigua.
+ * Usa la suscripción global a `state.notes` (collectionGroup).
+ */
+export function notesForPlayer(playerId) {
+  if (!playerId) return [];
+  return state.notes
+    .filter((n) => n.playerId === playerId)
+    .sort((a, b) => {
+      const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+}
+
+/** Cuenta las notas de un jugador. */
+export function countNotesForPlayer(playerId) {
+  if (!playerId) return 0;
+  return state.notes.reduce((acc, n) => acc + (n.playerId === playerId ? 1 : 0), 0);
 }
 
 /**

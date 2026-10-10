@@ -142,11 +142,31 @@ await resetAll();
   name: string,
   category: string,         // nombre exacto de una categoría
   phone: string,
-  notes: string,
   paymentDay: 1 | 15,       // día de pago del jugador
+  customAmount: number | null, // override del monto (opcional)
+  exempt: boolean,          // becado/exento (sin cobros automáticos)
   createdAt, updatedAt
 }
 ```
+
+> **Nota**: el campo `notes: string` quedó **obsoleto**. Las notas ahora viven
+> en la subcolección `players/{id}/notes/{noteId}` (ver abajo). Se conserva
+> en el documento del jugador solo por compatibilidad con datos existentes;
+> la UI ya no lo usa.
+
+### `players/{playerId}/notes/{noteId}`
+```js
+{
+  text: string,
+  playerId: string,         // redundante (parent.id) para queries collectionGroup
+  createdAt, updatedAt
+}
+```
+
+Cada jugador puede tener N notas. La UI muestra un contador en la tarjeta
+y la lista completa dentro del drawer/perfil del jugador, con opción de
+agregar y borrar notas individualmente. La suscripción en tiempo real usa
+`collectionGroup('notes')`.
 
 ### `payments/{id}`
 ```js

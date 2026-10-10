@@ -18,10 +18,11 @@
 - [ ] Documentar setup en README
 
 ## 🗄️ Fase 2 — Modelo de datos
-- [ ] Esquema `players/{id}`: `name, category, phone, notes, paymentDay (1|15), createdAt`
+- [x] Esquema `players/{id}`: `name, category, phone, paymentDay (1|15), customAmount?, exempt?, createdAt`
 - [ ] Esquema `payments/{id}`: `playerId, year, quincena (1|2), amount, status (paid|pending), paidDate, createdAt`
 - [ ] Esquema `categories/{id}`: `name, amount`
 - [ ] `tools/seed.js`: 5 categorías + 10 jugadores + pagos de ejemplo
+- [x] Subcolección `players/{id}/notes/{noteId}`: notas múltiples por jugador con `text, playerId, createdAt`
 
 ## ⚙️ Fase 3 — Servicios (módulos ES)
 - [ ] `utils/dates.js`: `getCurrentQuincena()`, `daysMora(player, today)`, `formatMXN()`

@@ -1,9 +1,9 @@
 // js/views/players.js
 // Vista Jugadores: cards minimalistas, planas, monocromas.
 
-import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl } from '../app.js';
-import { players, payments } from '../services/firestore.js';
-import { daysOverdue, formatMXN, formatDate, monthName } from '../utils/dates.js';
+import { state, toast, openModal, openDrawer, confirmModal, escapeHTML, ICON, avatarGradient, openMessageMenu, amountForPlayer, findCategoryByName, toWhatsAppUrl, notesForPlayer, countNotesForPlayer } from '../app.js';
+import { players, payments, playerNotes } from '../services/firestore.js';
+import { daysOverdue, formatMXN, formatDate, monthName, relativeDate } from '../utils/dates.js';
 import { getAutoPendingPeriod } from '../services/autoPending.js';
 import { openPaymentForm } from './payments.js';
 
@@ -314,6 +314,7 @@ function applyFilter(list, { category, status, dayRange, search }) {
 
 function playerCard(p) {
   const amount = formatMXN(amountForPlayer(p));
+  const notesCount = countNotesForPlayer(p.id);
   return `
     <article class="player-card" data-status="${p.status}" data-player="${p.id}" role="button" tabindex="0" aria-label="Ver información de ${escapeHTML(p.name)}">
       <!-- Header -->
@@ -341,7 +342,11 @@ function playerCard(p) {
         </div>
       </div>
 
-      ${p.notes ? `<p class="text-xs text-zinc-600 bg-zinc-50 border border-zinc-100 rounded-md px-2.5 py-2 leading-relaxed line-clamp-2">${escapeHTML(p.notes)}</p>` : ''}
+      ${notesCount > 0 ? `
+        <div class="notes-indicator" aria-label="${notesCount} nota${notesCount === 1 ? '' : 's'}">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"/></svg>
+          <span>${notesCount} nota${notesCount === 1 ? '' : 's'}</span>
+        </div>` : ''}
     </article>
   `;
 }
@@ -430,11 +435,12 @@ function openPlayerDrawer(id) {
         </div>` : ''}
     </div>
 
-    ${p.notes ? `
-      <div class="mt-5">
-        <p class="text-[10px] uppercase tracking-wider font-medium text-zinc-500 mb-1.5">Notas</p>
-        <p class="text-sm text-zinc-700 bg-zinc-50 border border-zinc-100 rounded-md px-3 py-2 leading-relaxed">${escapeHTML(p.notes)}</p>
-      </div>` : ''}
+    <!-- SECCIÓN DE NOTAS (reactiva) -->
+    <div class="mt-5">
+      <div class="notes-section" id="notes-section" data-player-id="${p.id}">
+        ${renderNotesSectionHTML(p.id, false)}
+      </div>
+    </div>
 
     ${(() => {
       const pays = state.payments
@@ -475,6 +481,27 @@ function openPlayerDrawer(id) {
   const drawer = openDrawer({ title: 'Detalles del jugador', body, footer });
   if (!drawer.panel) return;
 
+  // Suscripción a las notas del jugador: re-pinta solo la sección al cambiar
+  const refreshNotes = () => {
+    const host = drawer.panel.querySelector('#notes-section');
+    if (!host) return;
+    const isComposing = host.dataset.composing === '1';
+    host.innerHTML = renderNotesSectionHTML(p.id, isComposing);
+    wireNotesForm(drawer.panel, p.id, refreshNotes);
+  };
+  // Click delegado una sola vez sobre el contenedor estable (#notes-section)
+  const hostForClick = drawer.panel.querySelector('#notes-section');
+  if (hostForClick) wireNotesClicks(hostForClick, p.id);
+  const unsubNotes = playerNotes.subscribe(p.id, () => refreshNotes());
+  wireNotesForm(drawer.panel, p.id, refreshNotes);
+
+  // Hook al close original para desuscribir
+  const originalClose = drawer.close;
+  drawer.close = () => {
+    try { unsubNotes && unsubNotes(); } catch (_) {}
+    originalClose();
+  };
+
   drawer.panel.querySelector('[data-edit]')?.addEventListener('click', () => {
     drawer.close();
     openPlayerForm(p.id);
@@ -493,6 +520,153 @@ function openPlayerDrawer(id) {
   });
 }
 
+// === NOTAS (subcolección) ===
+
+const NOTE_ICON = '<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"/></svg>';
+const NOTE_PLUS_ICON = '<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/></svg>';
+
+function noteDateLabel(ts) {
+  if (!ts) return '';
+  let d;
+  if (typeof ts.toDate === 'function') d = ts.toDate();
+  else d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  return relativeDate(d.toISOString());
+}
+
+function renderNotesSectionHTML(playerId, composing) {
+  const notes = notesForPlayer(playerId);
+  const count = notes.length;
+  return `
+    <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-1.5">
+        <span class="text-zinc-500">${NOTE_ICON}</span>
+        <p class="text-[10px] uppercase tracking-wider font-medium text-zinc-500">Notas</p>
+        <span class="text-xs text-zinc-500 tabular-nums">${count}</span>
+      </div>
+      ${!composing ? `
+        <button type="button" class="btn btn-secondary btn-sm" data-notes-action="add">
+          ${NOTE_PLUS_ICON}<span>Agregar nota</span>
+        </button>` : ''}
+    </div>
+
+    ${composing ? `
+      <form class="notes-add-form" data-notes-form>
+        <textarea class="textarea" name="text" rows="3" maxlength="1000" required placeholder="Escribe una nota para este jugador…" autofocus></textarea>
+        <p class="form-hint" data-notes-error hidden></p>
+        <div class="flex items-center justify-end gap-2 mt-2">
+          <button type="button" class="btn btn-ghost btn-sm" data-notes-action="cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm" data-notes-submit>
+            <span>Guardar nota</span>
+          </button>
+        </div>
+      </form>` : ''}
+
+    ${count === 0 && !composing ? `
+      <p class="text-sm text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-md px-3 py-3 text-center notes-empty">Aún no hay notas para este jugador.</p>
+    ` : count === 0 ? '' : `
+      <ul class="notes-list" role="list">
+        ${notes.map((n) => `
+          <li class="note-item">
+            <p class="note-text">${escapeHTML(n.text || '')}</p>
+            <div class="note-meta">
+              <span>${escapeHTML(noteDateLabel(n.createdAt))}</span>
+              <button type="button" class="note-del" data-notes-action="del" data-note-id="${n.id}" aria-label="Eliminar nota">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+              </button>
+            </div>
+          </li>
+        `).join('')}
+      </ul>
+    `}
+  `;
+}
+
+function wireNotesClicks(host, playerId) {
+  // Click delegado (se llama una sola vez por drawer; el host persiste).
+  host.addEventListener('click', async (e) => {
+    if (e.type === 'notes:refresh') return; // evento custom, ignorar aquí
+    const btn = e.target.closest('[data-notes-action]');
+    if (!btn) return;
+    const action = btn.dataset.notesAction;
+    if (action === 'add') {
+      host.dataset.composing = '1';
+      host.dispatchEvent(new CustomEvent('notes:refresh'));
+      return;
+    }
+    if (action === 'cancel') {
+      host.dataset.composing = '';
+      host.dispatchEvent(new CustomEvent('notes:refresh'));
+      return;
+    }
+    if (action === 'del') {
+      const noteId = btn.dataset.noteId;
+      const ok = await confirmModal({
+        title: 'Eliminar nota',
+        message: '¿Eliminar esta nota? Esta acción no se puede deshacer.',
+        confirmText: 'Eliminar',
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await playerNotes.remove(playerId, noteId);
+        toast('Nota eliminada', 'success');
+      } catch (err) {
+        console.error(err);
+        toast('Error al eliminar la nota', 'error');
+      }
+    }
+  });
+
+  // Listener para repintar manualmente (botones add/cancel).
+  host.addEventListener('notes:refresh', () => {
+    const composing = host.dataset.composing === '1';
+    host.innerHTML = renderNotesSectionHTML(playerId, composing);
+    const panel = host.closest('.drawer-panel');
+    if (panel) wireNotesForm(panel, playerId, () => {
+      host.innerHTML = renderNotesSectionHTML(playerId, host.dataset.composing === '1');
+      const p = host.closest('.drawer-panel');
+      if (p) wireNotesForm(p, playerId, () => {});
+    });
+  });
+}
+
+function wireNotesForm(panel, playerId, refresh) {
+  const host = panel.querySelector('#notes-section');
+  if (!host) return;
+  const form = host.querySelector('[data-notes-form]');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const textarea = form.querySelector('textarea[name=text]');
+    const errEl = form.querySelector('[data-notes-error]');
+    const text = (textarea?.value || '').trim();
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    if (!text) {
+      if (errEl) { errEl.textContent = 'Escribe el contenido de la nota.'; errEl.hidden = false; }
+      return;
+    }
+    const submit = form.querySelector('[data-notes-submit]');
+    if (submit) {
+      submit.disabled = true;
+      submit.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span><span>Guardando…</span>';
+    }
+    try {
+      await playerNotes.add(playerId, { text });
+      toast('Nota agregada', 'success');
+      host.dataset.composing = '';
+      refresh();
+    } catch (err) {
+      console.error(err);
+      if (errEl) { errEl.textContent = 'No se pudo guardar la nota.'; errEl.hidden = false; }
+      if (submit) {
+        submit.disabled = false;
+        submit.innerHTML = '<span>Guardar nota</span>';
+      }
+    }
+  });
+}
+
 // === FORMULARIO CREAR/EDITAR ===
 
 function openPlayerForm(id) {
@@ -508,7 +682,6 @@ function openPlayerForm(id) {
     paymentDay:  editing?.paymentDay ?? 1,
     customAmount: editing?.customAmount ?? '',
     exempt:      editing?.exempt ?? false,
-    notes:       editing?.notes ?? '',
   };
 
   function avatarPreview() {
@@ -627,12 +800,6 @@ function openPlayerForm(id) {
               <span class="switch-knob"></span>
             </span>
           </label>
-          <div class="form-grid form-grid-full" style="margin-top: 12px;">
-            <div class="form-grid-full">
-              <label class="label" for="pf-notes">Notas</label>
-              <textarea id="pf-notes" name="notes" rows="2" class="textarea" placeholder="Información adicional (tutor, alergias, comentarios…)" data-sync="notes">${escapeHTML(data.notes)}</textarea>
-            </div>
-          </div>
         </section>
 
         <section class="form-section form-section--preview">
@@ -759,7 +926,6 @@ function openPlayerForm(id) {
       name,
       category,
       phone:       (data.phone || '').trim(),
-      notes:       (data.notes || '').trim(),
       paymentDay:  day,
       customAmount: customRaw === '' || customRaw == null ? null : Number(customRaw),
       exempt:      Boolean(data.exempt),
@@ -796,7 +962,7 @@ async function onDelete(id) {
   if (!p) return;
   const ok = await confirmModal({
     title: 'Eliminar jugador',
-    message: `¿Eliminar a "${p.name}"? También se eliminarán sus pagos asociados.`,
+    message: `¿Eliminar a "${p.name}"? También se eliminarán sus pagos y notas asociados.`,
     confirmText: 'Eliminar',
     danger: true,
   });
@@ -804,6 +970,8 @@ async function onDelete(id) {
   try {
     const related = state.payments.filter((pay) => pay.playerId === id);
     await Promise.all(related.map((pay) => payments.remove(pay.id)));
+    const relatedNotes = state.notes.filter((n) => n.playerId === id);
+    await Promise.all(relatedNotes.map((n) => playerNotes.remove(id, n.id)));
     await players.remove(id);
     toast('Jugador eliminado', 'success');
   } catch (err) {

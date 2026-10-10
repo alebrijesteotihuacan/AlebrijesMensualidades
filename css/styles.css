@@ -372,6 +372,93 @@ input[type="search"]::-webkit-search-decoration {
 .player-phone:hover { color: #09090B; }
 
 /* ============================================
+   NOTES (subcollection en perfil del jugador)
+   ============================================ */
+.notes-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #52525B;
+  background: #F4F4F5;
+  border: 1px solid #E4E4E7;
+  border-radius: 9999px;
+  padding: 0.18rem 0.55rem;
+  line-height: 1;
+}
+
+.notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.note-item {
+  background: #FAFAFA;
+  border: 1px solid #E4E4E7;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.note-text {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #18181B;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: #71717A;
+  line-height: 1;
+}
+
+.note-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+  color: #A1A1AA;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.note-del:hover { background: #FEE2E2; color: #991B1B; }
+
+.notes-add-form {
+  background: #FAFAFA;
+  border: 1px solid #E4E4E7;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.notes-add-form .textarea {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.notes-empty { margin: 0; }
+
+/* ============================================
    PROGRESS (categoría, 2px flat)
    ============================================ */
 .progress {
