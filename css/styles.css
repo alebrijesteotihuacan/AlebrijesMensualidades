@@ -45,6 +45,21 @@
   border-bottom: 1px solid #E4E4E7;
 }
 
+/* Backdrop del menú móvil: capa oscura semitransparente detrás del menú. */
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(9, 9, 11, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+.menu-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .nav-link {
   display: inline-flex;
   align-items: center;
@@ -430,14 +445,17 @@ input[type="search"]::-webkit-search-decoration {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 4px;
   color: #A1A1AA;
   background: transparent;
   border: none;
   cursor: pointer;
   transition: background-color .15s, color .15s;
+}
+@media (min-width: 640px) {
+  .note-del { width: 1.5rem; height: 1.5rem; }
 }
 .note-del:hover { background: #FEE2E2; color: #991B1B; }
 

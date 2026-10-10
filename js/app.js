@@ -67,8 +67,8 @@ function renderRoute() {
 
   view(main);
   highlightNav(route);
-  // Cerrar menú móvil al navegar
-  document.getElementById('nav-mobile')?.classList.add('hidden');
+  // Cerrar menú móvil al navegar (atributo hidden, no clase Tailwind)
+  closeMobileMenu();
 }
 
 function highlightNav(route) {
@@ -91,14 +91,59 @@ document.addEventListener('DOMContentLoaded', () => {
   const menu = document.getElementById('nav-mobile');
   if (btn && menu) {
     btn.addEventListener('click', () => {
-      const isOpen = !menu.hidden;
-      menu.hidden = isOpen;
-      btn.setAttribute('aria-expanded', String(!isOpen));
+      if (menu.hidden) openMobileMenu();
+      else closeMobileMenu({ returnFocus: true });
     });
+
+    // Cerrar con Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !menu.hidden) {
+        closeMobileMenu({ returnFocus: true });
+      }
+    });
+
+    // Click en un link del menú: cerrar
+    menu.addEventListener('click', (e) => {
+      if (e.target.closest('a')) closeMobileMenu();
+    });
+  }
+
+  // Click en el backdrop: cerrar
+  const backdrop = document.getElementById('nav-mobile-backdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', () => closeMobileMenu({ returnFocus: true }));
   }
 
   renderRoute();
 });
+
+/** Abre el menú móvil y muestra el backdrop. Mueve focus al primer link. */
+function openMobileMenu() {
+  const menu = document.getElementById('nav-mobile');
+  const btn = document.getElementById('hamburger');
+  const backdrop = document.getElementById('nav-mobile-backdrop');
+  if (!menu) return;
+  menu.hidden = false;
+  btn?.setAttribute('aria-expanded', 'true');
+  backdrop?.classList.add('is-visible');
+  // Foco al primer link (a11y)
+  const firstLink = menu.querySelector('a');
+  if (firstLink) {
+    // requestAnimationFrame para asegurar que el elemento sea focusable
+    requestAnimationFrame(() => firstLink.focus());
+  }
+}
+
+/** Cierra el menú móvil y oculta el backdrop. Opcionalmente devuelve focus al botón. */
+function closeMobileMenu({ returnFocus = false } = {}) {
+  const menu = document.getElementById('nav-mobile');
+  const btn = document.getElementById('hamburger');
+  const backdrop = document.getElementById('nav-mobile-backdrop');
+  if (menu && !menu.hidden) menu.hidden = true;
+  btn?.setAttribute('aria-expanded', 'false');
+  backdrop?.classList.remove('is-visible');
+  if (returnFocus && btn) btn.focus();
+}
 
 // ============ TOAST ============ //
 const TOAST_ROOT = () => document.getElementById('toast-root');
